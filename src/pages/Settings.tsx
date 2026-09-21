@@ -23,7 +23,6 @@ import {
   Trash2,
   Eye
 } from "lucide-react";
-import GoogleSheetSync from "../components/GoogleSheetSync";
 import ExportDataButton from "../components/ExportDataButton";
 import { executePrint, isWebSerialSupported, printToHardwareSerialPrinter, isWebBluetoothSupported, printToBluetoothPrinter } from "../lib/printerService";
 
