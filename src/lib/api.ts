@@ -34,10 +34,49 @@ export async function apiCall(action: string, payload: any = {}) {
       } : undefined)
     };
 
+    // 1. Handle user login action directly against Firestore "users" collection
+    if (action === "login") {
+      const { email, password } = payload;
+      
+      if (!email || !password) {
+        throw new Error("Please provide both email and password.");
+      }
+
+      const q = query(collection(db, "users"), where("email", "==", email));
+      const querySnap = await getDocs(q);
+
+      if (querySnap.empty) {
+        throw new Error("Invalid email or password.");
+      }
+
+      const userDoc = querySnap.docs[0];
+      const userData = userDoc.data();
+
+      if (userData.password && userData.password !== password) {
+        throw new Error("Invalid email or password.");
+      }
+
+      const userSession = {
+        id: userDoc.id,
+        fullName: userData.fullName || userData.name,
+        email: userData.email,
+        role: userData.role || "staff",
+        currentStation: userData.currentStation || userData.station || "Station POS Terminal"
+      };
+
+      localStorage.setItem("croissance_user", JSON.stringify(userSession));
+
+      return {
+        success: true,
+        data: userSession
+      };
+    }
+
+    // 2. Handle addSale action
     if (action === "addSale") {
       const now = new Date();
       const invoiceNumber = `INV-${now.getTime().toString().slice(-6)}`;
-      
+       
       const saleData = {
         ...payloadWithActor,
         invoiceNumber,
@@ -46,10 +85,10 @@ export async function apiCall(action: string, payload: any = {}) {
         timestamp: now.toISOString()
       };
 
-      // 1. Save sale record
+      // Save sale record to Firestore
       const docRef = await addDoc(collection(db, "sales"), saleData);
 
-      // 2. Safely deduct product stock
+      // Safely deduct product stock
       if (Array.isArray(payload.items)) {
         for (const item of payload.items) {
           const rawId = item.productId || item.id || item._id;
@@ -63,7 +102,6 @@ export async function apiCall(action: string, payload: any = {}) {
           const targetId = String(rawId);
 
           try {
-            // Check direct document ID match first
             const directRef = doc(db, "products", targetId);
             const directSnap = await getDoc(directRef);
 
@@ -79,13 +117,12 @@ export async function apiCall(action: string, payload: any = {}) {
               });
               console.log(`Depleted stock for product document [${targetId}] from ${oldStock} to ${newStock}`);
             } else {
-              // Fallback query if product document ID differs from internal product.id field
               const q = query(
                 collection(db, "products"), 
                 where("id", "==", targetId)
               );
               const querySnap = await getDocs(q);
-              
+               
               for (const docSnap of querySnap.docs) {
                 const currentData = docSnap.data();
                 const oldStock = Number(currentData.currentStock ?? currentData.stock ?? currentData.quantity ?? 0);
@@ -118,19 +155,30 @@ export async function apiCall(action: string, payload: any = {}) {
       };
     }
 
-    const response = await fetch("/api/sheets", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ action, payload: payloadWithActor }),
-    });
-
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(result.message || "API error");
+    // 3. Handle generic data fetching directly from Firestore
+    if (action === "getProducts" || action === "products") {
+      const querySnapshot = await getDocs(collection(db, "products"));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
-    return result.data;
+
+    if (action === "getSales" || action === "sales") {
+      const querySnapshot = await getDocs(collection(db, "sales"));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    if (action === "getCustomers" || action === "customers") {
+      const querySnapshot = await getDocs(collection(db, "customers"));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    if (action === "getUsers" || action === "users") {
+      const querySnapshot = await getDocs(collection(db, "users"));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    // Fallback for any other custom action
+    console.warn(`Unhandled action "${action}" passed to apiCall.`);
+    return { success: true, data: [] };
 
   } catch (error: any) {
     console.error("API Call Error:", error);

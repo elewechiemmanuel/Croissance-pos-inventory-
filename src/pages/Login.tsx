@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../store/AuthContext";
+import { apiCall } from "../lib/api";
 import { Droplets, Lock } from "lucide-react";
 
 export default function Login() {
@@ -8,18 +8,20 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+
     try {
-      await login(email, password);
+      // Calls the Firestore-backed login action we added to api.ts
+      await apiCall("login", { email, password });
       navigate("/");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      console.error("Login error:", err);
+      setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
