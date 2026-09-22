@@ -9,22 +9,19 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Login form submitted!");
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    console.log("Direct login triggered for:", email);
     setError("");
     setLoading(true);
 
     try {
-      console.log("Attempting Firebase sign-in for:", email);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("Sign-in successful! User:", userCredential.user.email);
-      
+      console.log("Firebase Auth Success:", userCredential.user.email);
       window.location.href = "/";
     } catch (err: any) {
       console.error("Login error caught:", err);
       setError(err.message || "Invalid email or password.");
-    } finally {
       setLoading(false);
     }
   };
@@ -46,7 +43,7 @@ export default function Login() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <div className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Email Address</label>
             <input
@@ -55,7 +52,7 @@ export default function Login() {
               className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@croissance.com"
+              placeholder="admin@croissance.com"
             />
           </div>
 
@@ -72,7 +69,8 @@ export default function Login() {
           </div>
 
           <button
-            type="submit"
+            type="button"
+            onClick={() => handleLogin()}
             disabled={loading}
             className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer text-sm shadow-sm disabled:opacity-60"
           >
@@ -82,7 +80,7 @@ export default function Login() {
               </>
             )}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );
