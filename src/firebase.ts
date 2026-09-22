@@ -11,13 +11,8 @@ const firebaseConfig = {
   appId: "1:102839485768:web:abcdef123456"
 };
 
-// Initialize Firebase App
 export const app = initializeApp(firebaseConfig);
-
-// Initialize Firebase Auth
 export const auth = getAuth(app);
-
-// Initialize Firestore with offline persistence enabled
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({
     tabManager: persistentMultipleTabManager()
