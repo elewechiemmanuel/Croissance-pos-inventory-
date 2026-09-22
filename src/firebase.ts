@@ -3,7 +3,7 @@ import { getAuth } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB0KLVY_UDCYDi6-kKTgpAoctMndSx9LNI",
+  apiKey: "AIzaSyB0KLVY_UDCYDi6-kKTgpAoctMndSx9LNI",,
   authDomain: "croissance-inventory.firebaseapp.com",
   projectId: "croissance-inventory",
   storageBucket: "croissance-inventory.appspot.com",
