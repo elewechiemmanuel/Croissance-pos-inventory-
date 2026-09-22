@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiCall } from "../lib/api";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "./firebase";
 import { Droplets, Lock } from "lucide-react";
 
 export default function Login() {
@@ -16,8 +17,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Calls the Firestore-backed login action we added to api.ts
-      await apiCall("login", { email, password });
+      await signInWithEmailAndPassword(auth, email, password);
       navigate("/");
     } catch (err: any) {
       console.error("Login error:", err);
@@ -65,7 +65,7 @@ export default function Login() {
               className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder="*******"
             />
           </div>
 
