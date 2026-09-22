@@ -11,15 +11,18 @@ export default function Login() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Login form submitted!");
     setError("");
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Forces a clean browser reload to the dashboard, bypassing router state delay
+      console.log("Attempting Firebase sign-in for:", email);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("Sign-in successful! User:", userCredential.user.email);
+      
       window.location.href = "/";
     } catch (err: any) {
-      console.error("Login error:", err);
+      console.error("Login error caught:", err);
       setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
