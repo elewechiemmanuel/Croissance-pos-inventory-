@@ -147,7 +147,17 @@ export async function apiCall(action: string, payload: any = {}) {
       };
     }
 
-    // 3. Handle generic data fetching directly from Firestore
+    // 3. Handle addProduct action
+    if (action === "addProduct") {
+      const productData = {
+        ...payloadWithActor,
+        createdAt: serverTimestamp()
+      };
+      const docRef = await addDoc(collection(db, "products"), productData);
+      return { success: true, id: docRef.id, ...productData };
+    }
+
+    // 4. Handle generic data fetching directly from Firestore
     if (action === "getProducts" || action === "products") {
       const querySnapshot = await getDocs(collection(db, "products"));
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -156,6 +166,18 @@ export async function apiCall(action: string, payload: any = {}) {
     if (action === "getSales" || action === "sales") {
       const querySnapshot = await getDocs(collection(db, "sales"));
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    if (action === "getInvoices" || action === "invoices") {
+      const querySnapshot = await getDocs(collection(db, "sales"));
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: data.date || data.timestamp || new Date().toISOString()
+        };
+      });
     }
 
     if (action === "getCustomers" || action === "customers") {
@@ -185,6 +207,7 @@ export async function apiCall(action: string, payload: any = {}) {
       return {
         products: productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         sales: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        invoices: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         customers: customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         users: usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         waybills: waybillsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
