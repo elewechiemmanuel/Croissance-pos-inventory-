@@ -149,8 +149,12 @@ export async function apiCall(action: string, payload: any = {}) {
 
     // 3. Handle addProduct action
     if (action === "addProduct") {
+      const initialStock = Number(payload.stock ?? payload.currentStock ?? payload.quantity ?? 0);
       const productData = {
         ...payloadWithActor,
+        stock: initialStock,
+        currentStock: initialStock,
+        quantity: initialStock,
         createdAt: serverTimestamp()
       };
       const docRef = await addDoc(collection(db, "products"), productData);
@@ -160,7 +164,17 @@ export async function apiCall(action: string, payload: any = {}) {
     // 4. Handle generic data fetching directly from Firestore
     if (action === "getProducts" || action === "products") {
       const querySnapshot = await getDocs(collection(db, "products"));
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        const stockVal = Number(data.currentStock ?? data.stock ?? data.quantity ?? 0);
+        return {
+          id: doc.id,
+          ...data,
+          stock: stockVal,
+          currentStock: stockVal,
+          quantity: stockVal
+        };
+      });
     }
 
     if (action === "getSales" || action === "sales") {
@@ -205,7 +219,17 @@ export async function apiCall(action: string, payload: any = {}) {
       ]);
 
       return {
-        products: productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        products: productsSnap.docs.map(doc => {
+          const data = doc.data();
+          const stockVal = Number(data.currentStock ?? data.stock ?? data.quantity ?? 0);
+          return {
+            id: doc.id,
+            ...data,
+            stock: stockVal,
+            currentStock: stockVal,
+            quantity: stockVal
+          };
+        }),
         sales: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         invoices: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         customers: customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
