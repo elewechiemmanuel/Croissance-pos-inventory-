@@ -23,7 +23,6 @@ import {
   Trash2
 } from "lucide-react";
 import ExportDataButton from "../components/ExportDataButton";
-import GoogleSheetSync from "../components/GoogleSheetSync";
 import { executePrint, isWebSerialSupported, printToHardwareSerialPrinter, isWebBluetoothSupported, printToBluetoothPrinter } from "../lib/printerService";
 
 const NIGERIAN_BANKS = [
