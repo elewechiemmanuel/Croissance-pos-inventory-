@@ -183,7 +183,31 @@ export async function apiCall(action: string, payload: any = {}) {
       return { success: true, id: docRef.id, ...productData };
     }
 
-    // 4. Handle generic data fetching directly from Firestore
+    // 4. Handle updateProduct action
+    if (action === "updateProduct") {
+      const { id, productId, ...updateFields } = payload;
+      const targetId = String(id || productId || "");
+      if (!targetId) {
+        throw new Error("Product ID is required for updateProduct.");
+      }
+      const productRef = doc(db, "products", targetId);
+      const cleanedUpdates = cleanObject(updateFields);
+      await updateDoc(productRef, cleanedUpdates);
+      return { success: true, id: targetId, ...cleanedUpdates };
+    }
+
+    // 5. Handle addPurchase action
+    if (action === "addPurchase") {
+      const purchaseData = cleanObject({
+        ...payloadWithActor,
+        createdAt: serverTimestamp(),
+        date: payload.date || new Date().toISOString().split("T")[0]
+      });
+      const docRef = await addDoc(collection(db, "purchases"), purchaseData);
+      return { success: true, id: docRef.id, ...purchaseData };
+    }
+
+    // 6. Handle generic data fetching directly from Firestore
     if (action === "getProducts" || action === "products") {
       const querySnapshot = await getDocs(collection(db, "products"));
       return querySnapshot.docs.map(doc => {
@@ -201,6 +225,11 @@ export async function apiCall(action: string, payload: any = {}) {
 
     if (action === "getSales" || action === "sales") {
       const querySnapshot = await getDocs(collection(db, "sales"));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
+    if (action === "getPurchases" || action === "purchases") {
+      const querySnapshot = await getDocs(collection(db, "purchases"));
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     }
 
@@ -232,9 +261,10 @@ export async function apiCall(action: string, payload: any = {}) {
     }
 
     if (action === "getInitialData") {
-      const [productsSnap, salesSnap, customersSnap, usersSnap, waybillsSnap] = await Promise.all([
+      const [productsSnap, salesSnap, purchasesSnap, customersSnap, usersSnap, waybillsSnap] = await Promise.all([
         getDocs(collection(db, "products")),
         getDocs(collection(db, "sales")),
+        getDocs(collection(db, "purchases")),
         getDocs(collection(db, "customers")),
         getDocs(collection(db, "users")),
         getDocs(collection(db, "waybills"))
@@ -253,6 +283,7 @@ export async function apiCall(action: string, payload: any = {}) {
           };
         }),
         sales: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        purchases: purchasesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         invoices: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         customers: customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         users: usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
