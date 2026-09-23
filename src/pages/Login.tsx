@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
+import { useAuth } from "../store/AuthContext";
 import { Droplets, Lock } from "lucide-react";
 
 export default function Login() {
@@ -8,16 +7,17 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    console.log("Direct login triggered for:", email);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log("Firebase Auth Success:", userCredential.user.email);
+      // Use the AuthContext login method which stores user data and updates state
+      await login(email, password);
+      // Force a clean reload to the dashboard
       window.location.href = "/";
     } catch (err: any) {
       console.error("Login error caught:", err);
@@ -43,7 +43,7 @@ export default function Login() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">Email Address</label>
             <input
@@ -52,7 +52,7 @@ export default function Login() {
               className="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@croissance.com"
+              placeholder="example@croissance.com"
             />
           </div>
 
@@ -69,8 +69,7 @@ export default function Login() {
           </div>
 
           <button
-            type="button"
-            onClick={() => handleLogin()}
+            type="submit"
             disabled={loading}
             className="w-full mt-2 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors cursor-pointer text-sm shadow-sm disabled:opacity-60"
           >
@@ -80,7 +79,7 @@ export default function Login() {
               </>
             )}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );
