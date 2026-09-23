@@ -11,6 +11,20 @@ import {
   serverTimestamp  
 } from "firebase/firestore";
 
+// Helper to remove any undefined fields recursively so Firestore doesn't crash
+function cleanObject(obj: any): any {
+  if (obj === null || typeof obj !== "object") return obj;
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(cleanObject);
+  const cleaned: any = {};
+  for (const key of Object.keys(obj)) {
+    if (obj[key] !== undefined) {
+      cleaned[key] = cleanObject(obj[key]);
+    }
+  }
+  return cleaned;
+}
+
 export async function apiCall(action: string, payload: any = {}) {
   try {
     let currentUser: any = null;
@@ -23,16 +37,24 @@ export async function apiCall(action: string, payload: any = {}) {
       // ignore JSON parse error
     }
 
-    const payloadWithActor = {
+    const rawActor = payload._actor || (currentUser ? {
+      id: currentUser.id || "admin",
+      fullName: currentUser.fullName || currentUser.name || "Admin",
+      email: currentUser.email || "admin@croissance.com",
+      role: currentUser.role || "admin",
+      station: currentUser.currentStation || currentUser.station || "Admin Office"
+    } : {
+      id: "system",
+      fullName: "System User",
+      email: "system@croissance.com",
+      role: "admin",
+      station: "Main Office"
+    });
+
+    const payloadWithActor = cleanObject({
       ...payload,
-      _actor: payload._actor || (currentUser ? {
-        id: currentUser.id,
-        fullName: currentUser.fullName,
-        email: currentUser.email,
-        role: currentUser.role,
-        station: currentUser.currentStation || (currentUser.role === "admin" ? "Admin Office" : "Station POS Terminal")
-      } : undefined)
-    };
+      _actor: rawActor
+    });
 
     // 1. Handle user login action directly against Firestore "users" collection
     if (action === "login") {
@@ -77,13 +99,13 @@ export async function apiCall(action: string, payload: any = {}) {
       const now = new Date();
       const invoiceNumber = `INV-${now.getTime().toString().slice(-6)}`;
        
-      const saleData = {
+      const saleData = cleanObject({
         ...payloadWithActor,
         invoiceNumber,
         createdAt: serverTimestamp(),
         date: payload.date || now.toISOString().split("T")[0],
         timestamp: now.toISOString()
-      };
+      });
 
       const docRef = await addDoc(collection(db, "sales"), saleData);
 
@@ -150,13 +172,13 @@ export async function apiCall(action: string, payload: any = {}) {
     // 3. Handle addProduct action
     if (action === "addProduct") {
       const initialStock = Number(payload.stock ?? payload.currentStock ?? payload.quantity ?? 0);
-      const productData = {
+      const productData = cleanObject({
         ...payloadWithActor,
         stock: initialStock,
         currentStock: initialStock,
         quantity: initialStock,
         createdAt: serverTimestamp()
-      };
+      });
       const docRef = await addDoc(collection(db, "products"), productData);
       return { success: true, id: docRef.id, ...productData };
     }
