@@ -294,7 +294,18 @@ export async function apiCall(action: string, payload: any = {}) {
 
     // Fallback for any other custom action
     console.warn(`Unhandled action "${action}" passed to apiCall.`);
-    return { success: true, data: [] };
+    return { 
+      success: true, 
+      data: [],
+      stationAddress: "Main Station Address",
+      products: [],
+      sales: [],
+      purchases: [],
+      invoices: [],
+      customers: [],
+      users: [],
+      waybills: []
+    };
 
   } catch (error: any) {
     console.error("API Call Error:", error);
