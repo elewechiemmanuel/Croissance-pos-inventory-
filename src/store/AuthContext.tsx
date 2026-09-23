@@ -1,25 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { User } from "../types";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../firebase";
-
-function getClientDeviceInfo(): string {
-  const ua = navigator.userAgent;
-  let os = "Desktop";
-  if (/windows/i.test(ua)) os = "Windows PC";
-  else if (/macintosh|mac os/i.test(ua)) os = "macOS";
-  else if (/android/i.test(ua)) os = "Android Mobile";
-  else if (/iphone|ipad|ipod/i.test(ua)) os = "iOS Device";
-  else if (/linux/i.test(ua)) os = "Linux";
-
-  let browser = "Browser";
-  if (/chrome|crios/i.test(ua)) browser = "Chrome";
-  else if (/firefox|fxios/i.test(ua)) browser = "Firefox";
-  else if (/safari/i.test(ua) && !/chrome/i.test(ua)) browser = "Safari";
-  else if (/edg/i.test(ua)) browser = "Edge";
-
-  return `${browser} (${os})`;
-}
+import { auth, db } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 interface AuthContextType {
   user: User | null;
@@ -59,11 +42,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userCredential = await signInWithEmailAndPassword(auth, email, pass);
       const firebaseUser = userCredential.user;
 
+      let fullName = firebaseUser.displayName || email.split("@")[0];
+      // Updated role type definition to include "cashier" from your Firestore records
+      let role: "admin" | "user" | "manager" | "cashier" = "user";
+
+      try {
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const data = userDocSnap.data();
+          if (data.fullName) fullName = data.fullName;
+          if (data.role) role = data.role;
+        }
+      } catch (err) {
+        console.warn("Could not fetch user profile from Firestore, falling back to defaults.", err);
+      }
+
       const appUser: User = {
         id: firebaseUser.uid,
         email: firebaseUser.email || email,
-        name: firebaseUser.email?.includes("admin") ? "Administrator" : "Manager",
-        role: firebaseUser.email?.includes("admin") ? "admin" : "manager"
+        fullName: fullName,
+        name: fullName,
+        role: role
       };
 
       setUser(appUser);
@@ -78,8 +78,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const appUser: User = {
       id: "google_" + Date.now(),
       email,
+      fullName: fullName,
       name: fullName,
-      role: email.includes("admin") ? "admin" : "manager"
+      role: email.includes("admin") ? "admin" : "user"
     };
     setUser(appUser);
     localStorage.setItem("croissance_user", JSON.stringify(appUser));

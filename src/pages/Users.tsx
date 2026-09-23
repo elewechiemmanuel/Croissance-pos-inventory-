@@ -16,8 +16,7 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  Radio,
-  MapPin
+  Radio
 } from "lucide-react";
 import { apiCall } from "../lib/api";
 
@@ -67,7 +66,6 @@ export default function UsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [lastCreatedUser, setLastCreatedUser] = useState<{ fullName: string; email: string; role: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -85,10 +83,6 @@ export default function UsersPage() {
       return (now - new Date(u.lastActiveAt).getTime()) < 90000;
     }
     return false;
-  };
-
-  const getUserActiveSession = (u: User) => {
-    return activeSessions.find((s: ActiveSession) => s.userId === u.id);
   };
 
   const filteredUsers = users.filter((u: User) => {
@@ -109,8 +103,6 @@ export default function UsersPage() {
   const onlineUsers = users.filter((u: User) => isUserOnline(u));
   const totalAdmins = users.filter((u: User) => u.role === "admin").length;
   const totalCashiers = users.filter((u: User) => u.role === "user").length;
-  const activeCount = users.filter((u: User) => (u.status || "Active") === "Active").length;
-  const inactiveCount = users.filter((u: User) => u.status === "Inactive").length;
 
   const handleOpenAddModal = () => {
     setEditingUser(null);
@@ -171,11 +163,6 @@ export default function UsersPage() {
         }
         await apiCall("addUser", formData);
         showToast(`New user "${formData.fullName}" created successfully!`);
-        setLastCreatedUser({
-          fullName: formData.fullName,
-          email: formData.email,
-          role: formData.role
-        });
 
         if (andAddAnother) {
           setFormData({
@@ -576,21 +563,34 @@ export default function UsersPage() {
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSubmitting ? "Saving..." : editingUser ? "Save Changes" : "Create User"}
-                </button>
+              <div className="flex justify-between items-center pt-3 border-t">
+                {!editingUser ? (
+                  <button
+                    type="button"
+                    onClick={(e) => handleSaveUser(e as unknown as React.FormEvent, true)}
+                    disabled={isSubmitting}
+                    className="px-3 py-2 text-sm text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-lg font-medium transition-colors"
+                  >
+                    Save & Add Another
+                  </button>
+                ) : <div />}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isSubmitting ? "Saving..." : editingUser ? "Save Changes" : "Create User"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

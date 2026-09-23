@@ -17,11 +17,9 @@ import {
   Droplets,
   FileText,
   Boxes,
-  FileSpreadsheet,
-  ExternalLink
+  FileSpreadsheet
 } from "lucide-react";
 import { cn } from "../lib/utils";
-import { getStoredSheetInfo } from "../lib/googleSheets";
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -39,15 +37,16 @@ export default function Sidebar() {
     return hasSession;
   }).length;
 
+  // Updated roles arrays to include "cashier" for operational modules
   const navItems = [
-    { name: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "user"] },
-    { name: "Sales / POS", path: "/pos", icon: ShoppingCart, roles: ["admin", "user"] },
-    { name: "Invoices", path: "/invoices", icon: FileText, roles: ["admin", "user"] },
-    { name: "Waybill & Delivery", path: "/waybills", icon: Truck, roles: ["admin", "user"] },
-    { name: "Products", path: "/products", icon: Package, roles: ["admin", "user"] },
-    { name: "Customers", path: "/customers", icon: Users, roles: ["admin", "user"] },
+    { name: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "user", "cashier"] },
+    { name: "Sales / POS", path: "/pos", icon: ShoppingCart, roles: ["admin", "user", "cashier"] },
+    { name: "Invoices", path: "/invoices", icon: FileText, roles: ["admin", "user", "cashier"] },
+    { name: "Waybill & Delivery", path: "/waybills", icon: Truck, roles: ["admin", "user", "cashier"] },
+    { name: "Products", path: "/products", icon: Package, roles: ["admin", "user", "cashier"] },
+    { name: "Customers", path: "/customers", icon: Users, roles: ["admin", "user", "cashier"] },
     { name: "Purchases", path: "/purchases", icon: Boxes, roles: ["admin"] },
-    { name: "Reports", path: "/reports", icon: BarChart2, roles: ["admin", "user"] },
+    { name: "Reports", path: "/reports", icon: BarChart2, roles: ["admin", "user", "cashier"] },
     { name: "Staff & Users", path: "/users", icon: UserCog, roles: ["admin"] },
     { name: "Settings", path: "/settings", icon: Settings, roles: ["admin"] },
   ];
@@ -81,7 +80,7 @@ export default function Sidebar() {
         </div>
         
         <div className="p-4 text-sm text-blue-300">
-          Welcome, {user?.fullName} <br />
+          Welcome, {user?.fullName || user?.name || "User"} <br />
           <span className="capitalize text-amber-500">({user?.role})</span>
         </div>
 
@@ -113,24 +112,25 @@ export default function Sidebar() {
         </nav>
 
         <div className="p-4 border-t border-blue-800 space-y-2">
-          {/* Google Sheets Live Database Quick Status */}
-          <NavLink
-            to="/settings"
-            onClick={() => setIsOpen(false)}
-            className="block p-2.5 rounded-lg bg-blue-950/70 border border-blue-800/80 hover:bg-blue-800 transition-colors group"
-          >
-            <div className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span>Google Sheets</span>
-              </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            </div>
-            <p className="text-[10px] text-blue-300 mt-1 flex items-center justify-between">
-              <span>9 Modules Sync</span>
-              <span className="text-amber-400 font-medium group-hover:underline">Open Sync</span>
-            </p>
-          </NavLink>
+          {user?.role === "admin" && (
+            <NavLink
+              to="/settings"
+              onClick={() => setIsOpen(false)}
+              className="block p-2.5 rounded-lg bg-blue-950/70 border border-blue-800/80 hover:bg-blue-800 transition-colors group"
+            >
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Google Sheets</span>
+                </span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              </div>
+              <p className="text-[10px] text-blue-300 mt-1 flex items-center justify-between">
+                <span>9 Modules Sync</span>
+                <span className="text-amber-400 font-medium group-hover:underline">Open Sync</span>
+              </p>
+            </NavLink>
+          )}
 
           <button 
             onClick={handleLogout}

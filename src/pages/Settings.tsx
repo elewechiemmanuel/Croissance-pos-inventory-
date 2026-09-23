@@ -20,10 +20,10 @@ import {
   Copy,
   Shield,
   Plus,
-  Trash2,
-  Eye
+  Trash2
 } from "lucide-react";
 import ExportDataButton from "../components/ExportDataButton";
+import GoogleSheetSync from "../components/GoogleSheetSync";
 import { executePrint, isWebSerialSupported, printToHardwareSerialPrinter, isWebBluetoothSupported, printToBluetoothPrinter } from "../lib/printerService";
 
 const NIGERIAN_BANKS = [
@@ -124,6 +124,8 @@ export default function Settings() {
 
   const handleSaveBankAndProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Strict block if user is not an administrator
     if (!isAdmin) {
       setSaveError("Administrative authorization required to update bank and business profile.");
       return;
@@ -268,11 +270,9 @@ DATE: ${new Date().toLocaleTimeString()}
     <div className="space-y-6 max-w-4xl">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-bold text-blue-900">System Settings</h1>
-        {/* Admin Export Module Button */}
         {isAdmin && <ExportDataButton />}
       </div>
 
-      {/* Primary Google Sheets Live Database Connection */}
       <GoogleSheetSync 
         appData={dataContext} 
         onRefreshLocalData={dataContext.refreshData} 
@@ -304,7 +304,6 @@ DATE: ${new Date().toLocaleTimeString()}
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-          {/* Card 1: System Installed Printer */}
           <div className="p-4 bg-gray-50/70 border border-gray-200/80 rounded-xl flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-bold text-blue-950">
@@ -325,7 +324,6 @@ DATE: ${new Date().toLocaleTimeString()}
             </button>
           </div>
 
-          {/* Card 2: USB POS Thermal Printer */}
           <div className="p-4 bg-gray-50/70 border border-gray-200/80 rounded-xl flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-bold text-blue-950">
@@ -347,7 +345,6 @@ DATE: ${new Date().toLocaleTimeString()}
             </button>
           </div>
 
-          {/* Card 3: Bluetooth POS Printer */}
           <div className="p-4 bg-gray-50/70 border border-gray-200/80 rounded-xl flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-bold text-blue-950">
@@ -432,12 +429,12 @@ DATE: ${new Date().toLocaleTimeString()}
             {isAdmin ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                Admin Authorized
+                Admin Authorized (Editable)
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
                 <Shield className="w-3.5 h-3.5" />
-                Read-Only (Admin Required)
+                Read-Only (Admin Access Required)
               </span>
             )}
           </div>
@@ -478,7 +475,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   list="nigerian-banks-list"
                   value={formData.bankName}
                   onChange={e => setFormData({ ...formData, bankName: e.target.value })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="e.g. First Bank of Nigeria"
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                   required
@@ -511,7 +508,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   maxLength={10}
                   value={formData.accountNumber}
                   onChange={e => setFormData({ ...formData, accountNumber: e.target.value.replace(/\D/g, "") })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="10-digit NUBAN"
                   className="w-full p-2.5 text-sm font-mono tracking-wider border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                   required
@@ -529,7 +526,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.accountName}
                   onChange={e => setFormData({ ...formData, accountName: e.target.value })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="e.g. Croissance Oil and Gas Ltd"
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                   required
@@ -542,7 +539,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.bankBranch}
                   onChange={e => setFormData({ ...formData, bankBranch: e.target.value })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="e.g. Ajah / Lekki Branch, Lagos"
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                 />
@@ -554,7 +551,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.sortCode}
                   onChange={e => setFormData({ ...formData, sortCode: e.target.value })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="e.g. 011152303"
                   className="w-full p-2.5 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                 />
@@ -566,7 +563,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.taxIdNumber}
                   onChange={e => setFormData({ ...formData, taxIdNumber: e.target.value })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="e.g. TIN-1292088-001"
                   className="w-full p-2.5 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                 />
@@ -580,7 +577,7 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.paymentInstructions}
                   onChange={e => setFormData({ ...formData, paymentInstructions: e.target.value })}
-                  disabled={!isAdmin || saving}
+                  disabled={!isAdmin || saving} // <-- Locked to Admin only
                   placeholder="e.g. Please use Invoice / Waybill number as transfer narration and notify cashier."
                   className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
                 />
@@ -588,105 +585,105 @@ DATE: ${new Date().toLocaleTimeString()}
                   This text will print directly below the bank account box on commercial invoices.
                 </span>
               </div>
-            </div>
-
-            {/* Secondary Bank Account Option */}
-            <div className="pt-2 border-t border-slate-200/80">
-              {!showSecondaryBank ? (
-                isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSecondaryBank(true)}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-900 hover:text-blue-700 py-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Add Secondary / Alternative Bank Account (Optional)
-                  </button>
-                )
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                      <CreditCard className="w-3.5 h-3.5 text-slate-500" />
-                      Alternative Bank Account (Optional)
-                    </span>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowSecondaryBank(false);
-                          setFormData({
-                            ...formData,
-                            secondaryBankName: "",
-                            secondaryAccountNumber: "",
-                            secondaryAccountName: ""
-                          });
-                        }}
-                        className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        Remove Alternative Account
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
-                      <input
-                        type="text"
-                        list="nigerian-banks-list"
-                        value={formData.secondaryBankName}
-                        onChange={e => setFormData({ ...formData, secondaryBankName: e.target.value })}
-                        disabled={!isAdmin || saving}
-                        placeholder="e.g. Zenith Bank PLC"
-                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Account Number</label>
-                      <input
-                        type="text"
-                        maxLength={10}
-                        value={formData.secondaryAccountNumber}
-                        onChange={e => setFormData({ ...formData, secondaryAccountNumber: e.target.value.replace(/\D/g, "") })}
-                        disabled={!isAdmin || saving}
-                        placeholder="10-digit NUBAN"
-                        className="w-full p-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Account Name</label>
-                      <input
-                        type="text"
-                        value={formData.secondaryAccountName}
-                        onChange={e => setFormData({ ...formData, secondaryAccountName: e.target.value })}
-                        disabled={!isAdmin || saving}
-                        placeholder="e.g. Croissance Oil and Gas Ltd"
-                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Save Button for Admin */}
-          {isAdmin && (
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                {saving ? "Saving Changes..." : "Save Bank & Profile Details"}
-              </button>
-            </div>
-          )}
-        </form>
-      </div>
+          {/* Secondary Bank Account Option */}
+          <div className="pt-2 border-t border-slate-200/80">
+            {!showSecondaryBank ? (
+              isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowSecondaryBank(true)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-900 hover:text-blue-700 py-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Secondary / Alternative Bank Account (Optional)
+                </button>
+              )
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+                    Alternative Bank Account (Optional)
+                  </span>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowSecondaryBank(false);
+                        setFormData({
+                          ...formData,
+                          secondaryBankName: "",
+                          secondaryAccountNumber: "",
+                          secondaryAccountName: ""
+                        });
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Remove Alternative Account
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
+                    <input
+                      type="text"
+                      list="nigerian-banks-list"
+                      value={formData.secondaryBankName}
+                      onChange={e => setFormData({ ...formData, secondaryBankName: e.target.value })}
+                      disabled={!isAdmin || saving}
+                      placeholder="e.g. Zenith Bank PLC"
+                      className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Account Number</label>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      value={formData.secondaryAccountNumber}
+                      onChange={e => setFormData({ ...formData, secondaryAccountNumber: e.target.value.replace(/\D/g, "") })}
+                      disabled={!isAdmin || saving}
+                      placeholder="10-digit NUBAN"
+                      className="w-full p-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Account Name</label>
+                    <input
+                      type="text"
+                      value={formData.secondaryAccountName}
+                      onChange={e => setFormData({ ...formData, secondaryAccountName: e.target.value })}
+                      disabled={!isAdmin || saving}
+                      placeholder="e.g. Croissance Oil and Gas Ltd"
+                      className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Save Button strictly wrapped for Admin */}
+        {isAdmin && (
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? "Saving Changes..." : "Save Bank & Profile Details"}
+            </button>
+          </div>
+        )}
+      </form>
     </div>
+  </div>
   );
 }

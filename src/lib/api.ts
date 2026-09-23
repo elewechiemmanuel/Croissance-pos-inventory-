@@ -25,6 +25,19 @@ function cleanObject(obj: any): any {
   return cleaned;
 }
 
+// Helper to safely format dates
+function safeDate(val: any): string {
+  if (!val) return new Date().toISOString().split("T")[0];
+  if (typeof val.toDate === "function") {
+    return val.toDate().toISOString().split("T")[0];
+  }
+  const parsed = new Date(val);
+  if (isNaN(parsed.getTime())) {
+    return new Date().toISOString().split("T")[0];
+  }
+  return parsed.toISOString();
+}
+
 export async function apiCall(action: string, payload: any = {}) {
   try {
     let currentUser: any = null;
@@ -225,12 +238,26 @@ export async function apiCall(action: string, payload: any = {}) {
 
     if (action === "getSales" || action === "sales") {
       const querySnapshot = await getDocs(collection(db, "sales"));
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: safeDate(data.date || data.timestamp || data.createdAt)
+        };
+      });
     }
 
     if (action === "getPurchases" || action === "purchases") {
       const querySnapshot = await getDocs(collection(db, "purchases"));
-      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: safeDate(data.date || data.createdAt)
+        };
+      });
     }
 
     if (action === "getInvoices" || action === "invoices") {
@@ -240,7 +267,7 @@ export async function apiCall(action: string, payload: any = {}) {
         return {
           id: doc.id,
           ...data,
-          date: data.date || data.timestamp || new Date().toISOString()
+          date: safeDate(data.date || data.timestamp || data.createdAt)
         };
       });
     }
@@ -270,6 +297,15 @@ export async function apiCall(action: string, payload: any = {}) {
         getDocs(collection(db, "waybills"))
       ]);
 
+      const formattedSales = salesSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: safeDate(data.date || data.timestamp || data.createdAt)
+        };
+      });
+
       return {
         products: productsSnap.docs.map(doc => {
           const data = doc.data();
@@ -282,9 +318,16 @@ export async function apiCall(action: string, payload: any = {}) {
             quantity: stockVal
           };
         }),
-        sales: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        purchases: purchasesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        invoices: salesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+        sales: formattedSales,
+        purchases: purchasesSnap.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            date: safeDate(data.date || data.createdAt)
+          };
+        }),
+        invoices: formattedSales,
         customers: customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         users: usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         waybills: waybillsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
