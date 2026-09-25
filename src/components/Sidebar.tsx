@@ -40,7 +40,6 @@ export default function Sidebar() {
   const userRole = (user?.role || "").trim().toLowerCase();
   const isAdmin = userRole === "admin" || userRole === "administrator";
 
-  // Rearranged so key pages appear clearly without needing to scroll
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Sales / POS", path: "/pos", icon: ShoppingCart },
@@ -59,7 +58,6 @@ export default function Sidebar() {
     navigate("/login");
   };
 
-  // Bypass filtering completely so every single item displays instantly
   const filteredNav = navItems;
 
   return (
@@ -74,10 +72,8 @@ export default function Sidebar() {
       </div>
 
       <div className={cn(
-        <div className={cn(
         "fixed md:sticky md:top-0 md:h-screen inset-y-0 left-0 z-40 w-64 bg-blue-900 text-white flex flex-col transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      )}>
       )}>
         <div className="p-6 hidden md:flex items-center gap-2 font-bold text-xl border-b border-blue-800">
           <Droplets className="text-amber-500" /> Croissance POS
