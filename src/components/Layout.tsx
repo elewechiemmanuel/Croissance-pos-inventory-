@@ -22,6 +22,25 @@ export default function Layout() {
     }
   };
 
+  // Explicitly handle adding a sale so it updates state instantly and saves to backend
+  const addSale = async (newSale: any) => {
+    try {
+      // Optimistically update local state immediately so it appears without waiting for poll
+      setData((prevData: any) => ({
+        ...prevData,
+        sales: [newSale, ...(prevData?.sales || [])]
+      }));
+
+      // Call your backend API to save the sale permanently
+      await apiCall("addSale", newSale);
+      
+      // Refresh data to sync with backend
+      await refreshData();
+    } catch (err) {
+      console.error("Failed to save sale:", err);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       refreshData();
@@ -45,8 +64,23 @@ export default function Layout() {
     </div>;
   }
 
+  // Provide safe fallback defaults for settings and stationAddress to prevent crashes
+  const contextValue = {
+    ...data,
+    stationAddress: data?.settings?.stationAddress || data?.stationAddress || "",
+    settings: data?.settings || {
+      businessName: "Croissance Oil and Gas Ltd",
+      stationAddress: "",
+      bankName: "",
+      accountNumber: "",
+      accountName: "",
+    },
+    refreshData,
+    addSale,
+  };
+
   return (
-    <DataContext.Provider value={{ ...data, refreshData }}>
+    <DataContext.Provider value={contextValue}>
       <div className="min-h-screen flex flex-col md:flex-row bg-gray-50 font-sans">
         <Sidebar />
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">

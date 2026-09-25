@@ -1,0 +1,1005 @@
+{
+  "Users": [
+    {
+      "id": "EiislOu3yRWqpJ3JL8g3danPHW32",
+      "email": "sales@croissance.com",
+      "role": "cashier",
+      "status": "active",
+      "fullName": "Sales Attendant"
+    }
+  ],
+  "products": [
+    {
+      "id": "P1",
+      "quantity": 0,
+      "stock": 0,
+      "currentStock": 50,
+      "sellingPrice": 0,
+      "unit": "KG",
+      "buyingPrice": 0,
+      "openingStock": 0,
+      "name": "LPG",
+      "category": "General",
+      "sku": "SKU-8404",
+      "wholesalePrice": 0,
+      "minStock": 0,
+      "status": "Inactive",
+      "updatedAt": "2026-09-23T14:00:08.404Z"
+    },
+    {
+      "id": "P2",
+      "quantity": 0,
+      "stock": 0,
+      "currentStock": 50,
+      "sellingPrice": 0,
+      "unit": "KG",
+      "buyingPrice": 0,
+      "openingStock": 0,
+      "name": "LPG",
+      "category": "General",
+      "sku": "SKU-0115",
+      "wholesalePrice": 0,
+      "minStock": 0,
+      "status": "Inactive",
+      "updatedAt": "2026-09-23T14:00:20.115Z"
+    },
+    {
+      "id": "c5hORS94400vZpJmyPaO",
+      "name": "LPG",
+      "sku": "SKU-7294",
+      "category": "LPG",
+      "unit": "KG",
+      "buyingPrice": 1200,
+      "sellingPrice": 1280,
+      "wholesalePrice": 1250,
+      "openingStock": 1000,
+      "minStock": 50,
+      "_actor": {
+        "id": "dXl6hM1Ai0OSGkucj14h9VTHARQ2",
+        "fullName": "Administrator",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Admin Office"
+      },
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "quantity": 998,
+      "currentStock": 998,
+      "stock": 998,
+      "status": "Inactive",
+      "updatedAt": "2026-09-23T13:59:31.070Z"
+    }
+  ],
+  "sales": [
+    {
+      "id": "0qmTVbRBy3rUwd1iFyE3",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 3,
+          "unitPrice": 11500,
+          "total": 34500
+        }
+      ],
+      "subtotal": 34500,
+      "discount": 0,
+      "totalAmount": 34500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-946393",
+      "createdAt": {
+        "_seconds": 1789727946,
+        "_nanoseconds": 709000000
+      }
+    },
+    {
+      "id": "3WJLNps3De5uVJEmRup1",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 2,
+          "unitPrice": 12500,
+          "total": 25000
+        },
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 2,
+          "unitPrice": 1350,
+          "total": 2700
+        },
+        {
+          "productId": "P1789737705011",
+          "productName": "Kerosene (DPK) - Pump / Retail",
+          "quantity": 2,
+          "unitPrice": 1350,
+          "total": 2700
+        }
+      ],
+      "subtotal": 30400,
+      "discount": 0,
+      "totalAmount": 30400,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-892865",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T14:14:52.865Z",
+      "createdAt": {
+        "_seconds": 1789740892,
+        "_nanoseconds": 925000000
+      }
+    },
+    {
+      "id": "BAYmjKeRmvMFVeKac75c",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1789737705011",
+          "productName": "Kerosene (DPK) - Pump / Retail",
+          "quantity": 4,
+          "unitPrice": 1400,
+          "total": 5600
+        }
+      ],
+      "subtotal": 5600,
+      "discount": 0,
+      "totalAmount": 5600,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-211722",
+      "date": "2026-09-20",
+      "timestamp": "2026-09-20T11:36:51.722Z",
+      "createdAt": {
+        "_seconds": 1789904357,
+        "_nanoseconds": 924000000
+      }
+    },
+    {
+      "id": "FhmXX8BnVqTQ2uaqRYQM",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 5,
+          "unitPrice": 12500,
+          "total": 62500
+        },
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 4999,
+          "unitPrice": 1300,
+          "total": 6498700
+        }
+      ],
+      "subtotal": 6561200,
+      "discount": 0,
+      "totalAmount": 6561200,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-342329",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T12:25:42.329Z",
+      "createdAt": {
+        "_seconds": 1789734343,
+        "_nanoseconds": 119000000
+      }
+    },
+    {
+      "id": "M3iBDjM4trM3yTky9rP8",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 1,
+          "unitPrice": 1300,
+          "total": 1300
+        }
+      ],
+      "subtotal": 1300,
+      "discount": 0,
+      "totalAmount": 1300,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-201563",
+      "createdAt": {
+        "_seconds": 1789728201,
+        "_nanoseconds": 424000000
+      }
+    },
+    {
+      "id": "RjstbET3fagpUtf0HfH6",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 12500,
+          "total": 12500
+        }
+      ],
+      "subtotal": 12500,
+      "discount": 0,
+      "totalAmount": 12500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-705331",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T16:08:25.331Z",
+      "createdAt": {
+        "_seconds": 1789747706,
+        "_nanoseconds": 875000000
+      }
+    },
+    {
+      "id": "S6Lt9FjFitLvrj66MbRE",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1789737705011",
+          "productName": "Kerosene (DPK) - Pump / Retail",
+          "quantity": 2,
+          "unitPrice": 1350,
+          "total": 2700
+        }
+      ],
+      "subtotal": 2700,
+      "discount": 0,
+      "totalAmount": 2700,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-147727",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T14:19:07.727Z",
+      "createdAt": {
+        "_seconds": 1789741147,
+        "_nanoseconds": 405000000
+      }
+    },
+    {
+      "id": "SgZY0NlOU8O9w7XAn23a",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 2,
+          "unitPrice": 1350,
+          "total": 2700
+        }
+      ],
+      "subtotal": 2700,
+      "discount": 0,
+      "totalAmount": 2700,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-349744",
+      "date": "2026-09-20",
+      "timestamp": "2026-09-20T11:05:49.744Z",
+      "createdAt": {
+        "_seconds": 1789902350,
+        "_nanoseconds": 761000000
+      }
+    },
+    {
+      "id": "VWPaPgBTgvuILg4WP0qO",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 11500,
+          "total": 11500
+        }
+      ],
+      "subtotal": 11500,
+      "discount": 0,
+      "totalAmount": 11500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-176266",
+      "createdAt": {
+        "_seconds": 1789728176,
+        "_nanoseconds": 633000000
+      }
+    },
+    {
+      "id": "WWr9xnoxpRH0ex56XKPP",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 2,
+          "unitPrice": 12500,
+          "total": 25000
+        }
+      ],
+      "subtotal": 25000,
+      "discount": 0,
+      "totalAmount": 25000,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-859847",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T12:34:19.847Z",
+      "createdAt": {
+        "_seconds": 1789734860,
+        "_nanoseconds": 240000000
+      }
+    },
+    {
+      "id": "Xssvr9XfXNnsaxb7TatJ",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 6,
+          "unitPrice": 11500,
+          "total": 69000
+        },
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 1,
+          "unitPrice": 1300,
+          "total": 1300
+        }
+      ],
+      "subtotal": 70300,
+      "discount": 0,
+      "totalAmount": 70300,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-798195",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T12:16:38.195Z",
+      "createdAt": {
+        "_seconds": 1789733799,
+        "_nanoseconds": 522000000
+      }
+    },
+    {
+      "id": "XxiQmu5cinyxC2lysqrL",
+      "customerId": "6EE0RDkSeSFlVfBIgmu6",
+      "customerName": "Emmanuel Elewechi",
+      "staffId": "dXl6hM1Ai0OSGkucj14h9VTHARQ2",
+      "items": [
+        {
+          "productId": "c5hORS94400vZpJmyPaO",
+          "productName": "LPG",
+          "quantity": 2,
+          "unitPrice": 1280,
+          "total": 2560
+        }
+      ],
+      "subtotal": 2560,
+      "discount": 0,
+      "totalAmount": 2560,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "dXl6hM1Ai0OSGkucj14h9VTHARQ2",
+        "fullName": "Administrator",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Admin Office"
+      },
+      "invoiceNumber": "INV-344771",
+      "createdAt": {
+        "_methodName": "serverTimestamp"
+      },
+      "date": "2026-09-23",
+      "timestamp": "2026-09-23T09:05:44.771Z"
+    },
+    {
+      "id": "ZT1JdecX3H18oXi4AJcm",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 1,
+          "unitPrice": 1300,
+          "total": 1300
+        }
+      ],
+      "subtotal": 1300,
+      "discount": 0,
+      "totalAmount": 1300,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-027138",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T11:13:47.138Z",
+      "createdAt": {
+        "_seconds": 1789730027,
+        "_nanoseconds": 456000000
+      }
+    },
+    {
+      "id": "dqLZBkhERazhrcVvOmhx",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 22,
+          "unitPrice": 12500,
+          "total": 275000
+        }
+      ],
+      "subtotal": 275000,
+      "discount": 0,
+      "totalAmount": 275000,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-672238",
+      "date": "2026-09-20",
+      "timestamp": "2026-09-20T10:54:32.238Z",
+      "createdAt": {
+        "_seconds": 1789901673,
+        "_nanoseconds": 800000000
+      }
+    },
+    {
+      "id": "gXYgZZsuKhqpM1wQad7S",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 11500,
+          "total": 11500
+        }
+      ],
+      "subtotal": 11500,
+      "discount": 0,
+      "totalAmount": 11500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-018546",
+      "createdAt": {
+        "_seconds": 1789728018,
+        "_nanoseconds": 391000000
+      }
+    },
+    {
+      "id": "jaA6dT47Dj8gtj9sa1XB",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 2,
+          "unitPrice": 11500,
+          "total": 23000
+        }
+      ],
+      "subtotal": 23000,
+      "discount": 0,
+      "totalAmount": 23000,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-829402",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T11:10:29.402Z",
+      "createdAt": {
+        "_seconds": 1789729829,
+        "_nanoseconds": 837000000
+      }
+    },
+    {
+      "id": "kZrB3RQw5Pn2eFIq0Ooq",
+      "customerId": "C2",
+      "customerName": "John Doe",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 11500,
+          "total": 11500
+        }
+      ],
+      "subtotal": 11500,
+      "discount": 0,
+      "totalAmount": 11500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-751834",
+      "createdAt": {
+        "_seconds": 1789727752,
+        "_nanoseconds": 214000000
+      }
+    },
+    {
+      "id": "lUNiHQ08YoTLUwqRjn8a",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1789737705011",
+          "productName": "Kerosene (DPK) - Pump / Retail",
+          "quantity": 2,
+          "unitPrice": 1400,
+          "total": 2800
+        },
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 2,
+          "unitPrice": 1350,
+          "total": 2700
+        },
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 2,
+          "unitPrice": 11500,
+          "total": 23000
+        }
+      ],
+      "subtotal": 28500,
+      "discount": 0,
+      "totalAmount": 28500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-195583",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T14:19:55.583Z",
+      "createdAt": {
+        "_seconds": 1789741195,
+        "_nanoseconds": 266000000
+      }
+    },
+    {
+      "id": "ntbIf6FR8ROnS1q0Gt1l",
+      "customerId": "C2",
+      "customerName": "John Doe",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 12500,
+          "total": 12500
+        },
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 11500,
+          "total": 11500
+        }
+      ],
+      "subtotal": 24000,
+      "discount": 0,
+      "totalAmount": 24000,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-590524",
+      "createdAt": {
+        "_seconds": 1789727590,
+        "_nanoseconds": 986000000
+      }
+    },
+    {
+      "id": "o1Zg23Ht1KfTiigOAf0m",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1789740860089",
+          "productName": "LPG",
+          "quantity": 1000,
+          "unitPrice": 1180,
+          "total": 1180000
+        }
+      ],
+      "subtotal": 1180000,
+      "discount": 0,
+      "totalAmount": 1180000,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-621300",
+      "date": "2026-09-20",
+      "timestamp": "2026-09-20T10:53:41.300Z",
+      "createdAt": {
+        "_seconds": 1789901628,
+        "_nanoseconds": 23000000
+      }
+    },
+    {
+      "id": "qkM13EUhUM3mPYv9FWGO",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 3,
+          "unitPrice": 12500,
+          "total": 37500
+        }
+      ],
+      "subtotal": 37500,
+      "discount": 0,
+      "totalAmount": 37500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-139653",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T12:38:59.653Z",
+      "createdAt": {
+        "_seconds": 1789735140,
+        "_nanoseconds": 898000000
+      }
+    },
+    {
+      "id": "rtqp6EHlYVldhcBWAq2P",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U2",
+      "staffName": "Sales Attendant",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 1,
+          "unitPrice": 12500,
+          "total": 12500
+        }
+      ],
+      "subtotal": 12500,
+      "discount": 0,
+      "totalAmount": 12500,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U2",
+        "fullName": "Sales Attendant",
+        "email": "sales@croissance.com",
+        "role": "user",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-774667",
+      "createdAt": {
+        "_seconds": 1789727774,
+        "_nanoseconds": 584000000
+      }
+    },
+    {
+      "id": "t1jiAwc0FccnQK3xTZRz",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 2,
+          "unitPrice": 11500,
+          "total": 23000
+        },
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 2,
+          "unitPrice": 1300,
+          "total": 2600
+        },
+        {
+          "productId": "P1789737705011",
+          "productName": "Kerosene (DPK) - Pump / Retail",
+          "quantity": 2,
+          "unitPrice": 1400,
+          "total": 2800
+        }
+      ],
+      "subtotal": 28400,
+      "discount": 0,
+      "totalAmount": 28400,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-137713",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T14:18:57.713Z",
+      "createdAt": {
+        "_seconds": 1789741137,
+        "_nanoseconds": 776000000
+      }
+    },
+    {
+      "id": "u3d2U75f8OfK0gahhlUB",
+      "customerId": "C1",
+      "customerName": "Walk-in Customer",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1789737705011",
+          "productName": "Kerosene (DPK) - Pump / Retail",
+          "quantity": 2,
+          "unitPrice": 1400,
+          "total": 2800
+        }
+      ],
+      "subtotal": 2800,
+      "discount": 0,
+      "totalAmount": 2800,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-723111",
+      "date": "2026-09-18",
+      "timestamp": "2026-09-18T13:22:03.111Z",
+      "createdAt": {
+        "_seconds": 1789737723,
+        "_nanoseconds": 620000000
+      }
+    },
+    {
+      "id": "xnHfiIp9NIQOcyrQEhnV",
+      "customerId": "C3",
+      "customerName": "ABC Logistics Ltd",
+      "staffId": "U1",
+      "staffName": "Admin User",
+      "items": [
+        {
+          "productId": "P1",
+          "productName": "LPG 12.5kg Cylinder",
+          "quantity": 5,
+          "unitPrice": 11500,
+          "total": 57500
+        },
+        {
+          "productId": "P2",
+          "productName": "Diesel (AGO)",
+          "quantity": 5992,
+          "unitPrice": 1300,
+          "total": 7789600
+        }
+      ],
+      "subtotal": 7847100,
+      "discount": 0,
+      "totalAmount": 7847100,
+      "paymentMethod": "Cash",
+      "paymentStatus": "Completed",
+      "_actor": {
+        "id": "U1",
+        "fullName": "Admin User",
+        "email": "admin@croissance.com",
+        "role": "admin",
+        "station": "Croissance Station Terminal"
+      },
+      "invoiceNumber": "INV-686291",
+      "date": "2026-09-20",
+      "timestamp": "2026-09-20T11:44:46.291Z",
+      "createdAt": {
+        "_seconds": 1789904726,
+        "_nanoseconds": 8000000
+      }
+    }
+  ]
+}

@@ -20,9 +20,11 @@ import {
   Copy,
   Shield,
   Plus,
-  Trash2
+  Trash2,
+  Building2
 } from "lucide-react";
 import ExportDataButton from "../components/ExportDataButton";
+import GoogleSheetSync from "../components/GoogleSheetSync";
 import { executePrint, isWebSerialSupported, printToHardwareSerialPrinter, isWebBluetoothSupported, printToBluetoothPrinter } from "../lib/printerService";
 
 const NIGERIAN_BANKS = [
@@ -154,7 +156,7 @@ export default function Settings() {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 4500);
     } catch (err: any) {
-      setSaveError(err.message || "Failed to save bank details. Please try again.");
+      setSaveError(err.message || "Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -189,31 +191,24 @@ export default function Settings() {
         </head>
         <body>
           <div class="text-center">
-            <h3 style="margin: 0; font-size: 14px;">CROISSANCE OIL & GAS LTD</h3>
-            <p style="margin: 2px 0; font-size: 10px;">${settings.stationAddress || "Plot 12, Commercial Area, Port Harcourt"}</p>
+            <h3 style="margin: 0; font-size: 14px;">${formData.businessName || "CROISSANCE OIL & GAS LTD"}</h3>
+            <p style="margin: 2px 0; font-size: 10px;">${formData.stationAddress || "Plot 12, Commercial Area, Lagos"}</p>
             <div class="double-divider"></div>
             <h4 style="margin: 4px 0;">DEVICE PRINTER TEST</h4>
             <p style="margin: 2px 0; font-size: 10px;">Date: ${new Date().toLocaleString()}</p>
             <div class="divider"></div>
           </div>
-          <p>This test confirms that your device's installed printer is communicating properly with Croissance POS.</p>
-          <div class="divider"></div>
-          <table style="width: 100%; font-size: 11px;">
-            <tr><td>Status:</td><td style="text-align: right; font-weight: bold;">CONNECTED</td></tr>
-            <tr><td>Driver:</td><td style="text-align: right;">System Spooler</td></tr>
-            <tr><td>Paper:</td><td style="text-align: right;">80mm Thermal</td></tr>
-          </table>
+          <p>This test confirms that your device's installed printer is communicating properly.</p>
           <div class="double-divider"></div>
           <div class="text-center" style="font-size: 10px;">
             <p style="font-weight: bold;">*** TEST SUCCESSFUL ***</p>
-            <p>Printer ready for receipts and invoices.</p>
           </div>
         </body>
       </html>
     `;
 
     try {
-      const res = await executePrint(sampleHtml, { title: "Printer Test - Croissance POS", paperSize: "thermal80" });
+      const res = await executePrint(sampleHtml, { title: "Printer Test", paperSize: "thermal80" });
       setPrinterStatus(res.message);
     } catch (e: any) {
       setPrinterStatus("Failed to access printer. Please check popup permissions.");
@@ -224,18 +219,7 @@ export default function Settings() {
 
   const handleTestUsbSerial = async () => {
     setPrinterStatus("Connecting to USB/COM thermal printer...");
-    const raw = `
-================================
-   CROISSANCE POS HARDWARE
-================================
-PORT: USB / SERIAL COM
-BAUD: 9600 BPS
-TEST: ESC/POS DIRECT CUT
-STATUS: HARDWARE OK
-================================
-    PRINTER HARDWARE VERIFIED
-================================
-    `;
+    const raw = "================================\n   CROISSANCE POS HARDWARE\nSTATUS: HARDWARE OK\n================================\n";
     const ok = await printToHardwareSerialPrinter(raw);
     if (ok) {
       setPrinterStatus("Direct USB test printed successfully!");
@@ -247,15 +231,7 @@ STATUS: HARDWARE OK
 
   const handleTestBluetooth = async () => {
     setPrinterStatus("Connecting to Bluetooth POS printer...");
-    const raw = `
-================================
-   CROISSANCE POS BLUETOOTH
-================================
-TEST: WIRELESS THERMAL SLIP
-STATUS: BLUETOOTH OK
-DATE: ${new Date().toLocaleTimeString()}
-================================
-    `;
+    const raw = "================================\n   CROISSANCE POS BLUETOOTH\nSTATUS: BLUETOOTH OK\n================================\n";
     const ok = await printToBluetoothPrinter(raw);
     if (ok) {
       setPrinterStatus("Direct Bluetooth test printed successfully!");
@@ -296,7 +272,7 @@ DATE: ${new Date().toLocaleTimeString()}
         </div>
 
         {printerStatus && (
-          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs font-semibold text-blue-900 animate-in fade-in flex items-center gap-2">
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs font-semibold text-blue-900 flex items-center gap-2">
             <Printer className="w-4 h-4 text-blue-600 shrink-0" />
             <span>{printerStatus}</span>
           </div>
@@ -309,14 +285,12 @@ DATE: ${new Date().toLocaleTimeString()}
                 <Printer className="w-4 h-4 text-blue-700" />
                 <span>Installed Device Printer</span>
               </div>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Uses your operating system's default printer (Epson, HP, Canon, POS-80, Xprinter, or network printer).
-              </p>
+              <p className="text-xs text-gray-600 mt-2">Uses your operating system's default printer.</p>
             </div>
             <button
               type="button"
               onClick={handleTestInstalledPrinter}
-              className="mt-4 w-full py-2 px-3 bg-blue-900 hover:bg-blue-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              className="mt-4 w-full py-2 px-3 bg-blue-900 hover:bg-blue-800 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5 text-amber-400" />
               <span>Test Installed Printer</span>
@@ -329,15 +303,13 @@ DATE: ${new Date().toLocaleTimeString()}
                 <Cpu className="w-4 h-4 text-emerald-700" />
                 <span>USB / Serial Thermal</span>
               </div>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Direct raw ESC/POS commands over USB or COM port. {isWebSerialSupported() ? "Available on this browser." : "Requires Chrome or Edge."}
-              </p>
+              <p className="text-xs text-gray-600 mt-2">Direct raw ESC/POS commands over USB or COM port.</p>
             </div>
             <button
               type="button"
               onClick={handleTestUsbSerial}
               disabled={!isWebSerialSupported()}
-              className="mt-4 w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              className="mt-4 w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Cpu className="w-3.5 h-3.5" />
               <span>Test USB Hardware</span>
@@ -350,26 +322,17 @@ DATE: ${new Date().toLocaleTimeString()}
                 <Radio className="w-4 h-4 text-indigo-700" />
                 <span>Bluetooth POS Printer</span>
               </div>
-              <p className="text-xs text-gray-600 mt-2 leading-relaxed">
-                Wireless thermal receipt slip printers used for portable fuel pump attendants and mobile POS.
-              </p>
+              <p className="text-xs text-gray-600 mt-2">Wireless thermal receipt slip printers.</p>
             </div>
             <button
               type="button"
               onClick={handleTestBluetooth}
               disabled={!isWebBluetoothSupported()}
-              className="mt-4 w-full py-2 px-3 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+              className="mt-4 w-full py-2 px-3 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Radio className="w-3.5 h-3.5" />
               <span>Test Bluetooth POS</span>
             </button>
-          </div>
-        </div>
-
-        <div className="mt-4 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
-          <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <strong>How to set your default printer:</strong> In Windows (Settings &gt; Bluetooth &amp; Devices &gt; Printers) or macOS (System Settings &gt; Printers), set your POS Receipt Printer or Office Printer as "Default". Croissance POS will automatically send all print jobs to that printer.
           </div>
         </div>
       </div>
@@ -382,9 +345,7 @@ DATE: ${new Date().toLocaleTimeString()}
               <UserCog className="w-5 h-5 text-blue-800" />
               Staff Accounts & Access Roles
             </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Create and manage login access for fuel attendants, cashiers, and managers.
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5">Manage login access for fuel attendants, cashiers, and managers.</p>
           </div>
           <Link
             to="/users"
@@ -407,7 +368,7 @@ DATE: ${new Date().toLocaleTimeString()}
         </div>
       </div>
 
-      {/* Company Bank Details & Settlement Accounts (Admin Managed) */}
+      {/* Company Profile & Settlement Accounts Form */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-100">
           <div>
@@ -416,11 +377,11 @@ DATE: ${new Date().toLocaleTimeString()}
                 <Landmark className="w-5 h-5" />
               </div>
               <h2 className="text-lg font-bold text-gray-900">
-                Company Bank Details & Settlement Accounts
+                Company Profile & Settlement Accounts
               </h2>
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Configure the official receiving bank accounts displayed on printed receipts, commercial invoices, and waybills.
+              Configure business info, addresses, and official receiving bank accounts shown on receipts and invoices.
             </p>
           </div>
 
@@ -442,7 +403,7 @@ DATE: ${new Date().toLocaleTimeString()}
         {saveSuccess && (
           <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>Company bank settlement details and business profile updated successfully!</span>
+            <span>Company profile and bank details updated successfully!</span>
           </div>
         )}
 
@@ -454,7 +415,92 @@ DATE: ${new Date().toLocaleTimeString()}
         )}
 
         <form onSubmit={handleSaveBankAndProfile} className="mt-6 space-y-6">
-          {/* Bank Account Details Grid */}
+          
+          {/* Company General Info Section */}
+          <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-4 h-4 text-blue-900" />
+                Company Identity & Address Details
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Business Name</label>
+                <input
+                  type="text"
+                  value={formData.businessName}
+                  onChange={e => setFormData({ ...formData, businessName: e.target.value })}
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. Croissance Oil and Gas Ltd"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">RC Number / Registration Number</label>
+                <input
+                  type="text"
+                  value={formData.rcNumber}
+                  onChange={e => setFormData({ ...formData, rcNumber: e.target.value })}
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. 1292088"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Station / Branch Address</label>
+                <input
+                  type="text"
+                  value={formData.stationAddress}
+                  onChange={e => setFormData({ ...formData, stationAddress: e.target.value })}
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. Plot 12, Lekki-Epe Expressway, Lagos"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Head Office Address</label>
+                <input
+                  type="text"
+                  value={formData.officeAddress}
+                  onChange={e => setFormData({ ...formData, officeAddress: e.target.value })}
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. Victoria Island, Lagos"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Phone Numbers</label>
+                <input
+                  type="text"
+                  value={formData.phoneNumbers}
+                  onChange={e => setFormData({ ...formData, phoneNumbers: e.target.value })}
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. +234 800 000 0000"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={e => setFormData({ ...formData, email: e.target.value })}
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. info@croissanceoil.com"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Primary Settlement Account Details Grid */}
           <div className="bg-slate-50/60 p-4 rounded-xl border border-slate-200/80 space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -474,9 +520,9 @@ DATE: ${new Date().toLocaleTimeString()}
                   list="nigerian-banks-list"
                   value={formData.bankName}
                   onChange={e => setFormData({ ...formData, bankName: e.target.value })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
+                  disabled={!isAdmin || saving}
                   placeholder="e.g. First Bank of Nigeria"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                   required
                 />
                 <datalist id="nigerian-banks-list">
@@ -507,14 +553,11 @@ DATE: ${new Date().toLocaleTimeString()}
                   maxLength={10}
                   value={formData.accountNumber}
                   onChange={e => setFormData({ ...formData, accountNumber: e.target.value.replace(/\D/g, "") })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
+                  disabled={!isAdmin || saving}
                   placeholder="10-digit NUBAN"
-                  className="w-full p-2.5 text-sm font-mono tracking-wider border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full p-2.5 text-sm font-mono tracking-wider border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                   required
                 />
-                <span className="text-[10px] text-gray-400 mt-0.5 block">
-                  {formData.accountNumber.length}/10 digits
-                </span>
               </div>
 
               <div>
@@ -525,9 +568,9 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.accountName}
                   onChange={e => setFormData({ ...formData, accountName: e.target.value })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
+                  disabled={!isAdmin || saving}
                   placeholder="e.g. Croissance Oil and Gas Ltd"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                   required
                 />
               </div>
@@ -538,9 +581,9 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.bankBranch}
                   onChange={e => setFormData({ ...formData, bankBranch: e.target.value })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
-                  placeholder="e.g. Ajah / Lekki Branch, Lagos"
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. Ajah Branch, Lagos"
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                 />
               </div>
 
@@ -550,9 +593,9 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.sortCode}
                   onChange={e => setFormData({ ...formData, sortCode: e.target.value })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
+                  disabled={!isAdmin || saving}
                   placeholder="e.g. 011152303"
-                  className="w-full p-2.5 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full p-2.5 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                 />
               </div>
 
@@ -562,9 +605,9 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.taxIdNumber}
                   onChange={e => setFormData({ ...formData, taxIdNumber: e.target.value })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
+                  disabled={!isAdmin || saving}
                   placeholder="e.g. TIN-1292088-001"
-                  className="w-full p-2.5 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  className="w-full p-2.5 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                 />
               </div>
 
@@ -576,113 +619,109 @@ DATE: ${new Date().toLocaleTimeString()}
                   type="text"
                   value={formData.paymentInstructions}
                   onChange={e => setFormData({ ...formData, paymentInstructions: e.target.value })}
-                  disabled={!isAdmin || saving} // <-- Locked to Admin only
-                  placeholder="e.g. Please use Invoice / Waybill number as transfer narration and notify cashier."
-                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-blue-900 disabled:bg-gray-100 disabled:text-gray-500"
+                  disabled={!isAdmin || saving}
+                  placeholder="e.g. Please use Invoice / Waybill number as transfer narration."
+                  className="w-full p-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
                 />
-                <span className="text-[11px] text-gray-500 mt-1 block">
-                  This text will print directly below the bank account box on commercial invoices.
-                </span>
               </div>
-          </div>
+            </div>
 
-          {/* Secondary Bank Account Option */}
-          <div className="pt-2 border-t border-slate-200/80">
-            {!showSecondaryBank ? (
-              isAdmin && (
-                <button
-                  type="button"
-                  onClick={() => setShowSecondaryBank(true)}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-900 hover:text-blue-700 py-1 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Secondary / Alternative Bank Account (Optional)
-                </button>
-              )
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                    <CreditCard className="w-3.5 h-3.5 text-slate-500" />
-                    Alternative Bank Account (Optional)
-                  </span>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowSecondaryBank(false);
-                        setFormData({
-                          ...formData,
-                          secondaryBankName: "",
-                          secondaryAccountNumber: "",
-                          secondaryAccountName: ""
-                        });
-                      }}
-                      className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Remove Alternative Account
-                    </button>
-                  )}
-                </div>
+            {/* Secondary Bank Account Option */}
+            <div className="pt-2 border-t border-slate-200/80">
+              {!showSecondaryBank ? (
+                isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSecondaryBank(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-900 hover:text-blue-700 py-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add Secondary / Alternative Bank Account (Optional)
+                  </button>
+                )
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5 text-slate-500" />
+                      Alternative Bank Account (Optional)
+                    </span>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSecondaryBank(false);
+                          setFormData({
+                            ...formData,
+                            secondaryBankName: "",
+                            secondaryAccountNumber: "",
+                            secondaryAccountName: ""
+                          });
+                        }}
+                        className="text-xs text-red-600 hover:text-red-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remove Alternative Account
+                      </button>
+                    )}
+                  </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
-                    <input
-                      type="text"
-                      list="nigerian-banks-list"
-                      value={formData.secondaryBankName}
-                      onChange={e => setFormData({ ...formData, secondaryBankName: e.target.value })}
-                      disabled={!isAdmin || saving}
-                      placeholder="e.g. Zenith Bank PLC"
-                      className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Account Number</label>
-                    <input
-                      type="text"
-                      maxLength={10}
-                      value={formData.secondaryAccountNumber}
-                      onChange={e => setFormData({ ...formData, secondaryAccountNumber: e.target.value.replace(/\D/g, "") })}
-                      disabled={!isAdmin || saving}
-                      placeholder="10-digit NUBAN"
-                      className="w-full p-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Account Name</label>
-                    <input
-                      type="text"
-                      value={formData.secondaryAccountName}
-                      onChange={e => setFormData({ ...formData, secondaryAccountName: e.target.value })}
-                      disabled={!isAdmin || saving}
-                      placeholder="e.g. Croissance Oil and Gas Ltd"
-                      className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
-                    />
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Bank Name</label>
+                      <input
+                        type="text"
+                        list="nigerian-banks-list"
+                        value={formData.secondaryBankName}
+                        onChange={e => setFormData({ ...formData, secondaryBankName: e.target.value })}
+                        disabled={!isAdmin || saving}
+                        placeholder="e.g. Zenith Bank PLC"
+                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Account Number</label>
+                      <input
+                        type="text"
+                        maxLength={10}
+                        value={formData.secondaryAccountNumber}
+                        onChange={e => setFormData({ ...formData, secondaryAccountNumber: e.target.value.replace(/\D/g, "") })}
+                        disabled={!isAdmin || saving}
+                        placeholder="10-digit NUBAN"
+                        className="w-full p-2 text-sm font-mono border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Account Name</label>
+                      <input
+                        type="text"
+                        value={formData.secondaryAccountName}
+                        onChange={e => setFormData({ ...formData, secondaryAccountName: e.target.value })}
+                        disabled={!isAdmin || saving}
+                        placeholder="e.g. Croissance Oil and Gas Ltd"
+                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 disabled:bg-gray-100"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Save Button strictly wrapped for Admin */}
-        {isAdmin && (
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? "Saving Changes..." : "Save Bank & Profile Details"}
-            </button>
-          </div>
-        )}
-      </form>
+          {isAdmin && (
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-blue-900 hover:bg-blue-800 text-white px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving Changes..." : "Save Settings & Company Profile"}
+              </button>
+            </div>
+          )}
+        </form>
+      </div>
     </div>
-  </div>
   );
 }

@@ -37,18 +37,21 @@ export default function Sidebar() {
     return hasSession;
   }).length;
 
-  // Updated roles arrays to include "cashier" for operational modules
+  const userRole = (user?.role || "").trim().toLowerCase();
+  const isAdmin = userRole === "admin" || userRole === "administrator";
+
+  // Rearranged so key pages appear clearly without needing to scroll
   const navItems = [
-    { name: "Dashboard", path: "/", icon: LayoutDashboard, roles: ["admin", "user", "cashier"] },
-    { name: "Sales / POS", path: "/pos", icon: ShoppingCart, roles: ["admin", "user", "cashier"] },
-    { name: "Invoices", path: "/invoices", icon: FileText, roles: ["admin", "user", "cashier"] },
-    { name: "Waybill & Delivery", path: "/waybills", icon: Truck, roles: ["admin", "user", "cashier"] },
-    { name: "Products", path: "/products", icon: Package, roles: ["admin", "user", "cashier"] },
-    { name: "Customers", path: "/customers", icon: Users, roles: ["admin", "user", "cashier"] },
-    { name: "Purchases", path: "/purchases", icon: Boxes, roles: ["admin"] },
-    { name: "Reports", path: "/reports", icon: BarChart2, roles: ["admin", "user", "cashier"] },
-    { name: "Staff & Users", path: "/users", icon: UserCog, roles: ["admin"] },
-    { name: "Settings", path: "/settings", icon: Settings, roles: ["admin"] },
+    { name: "Dashboard", path: "/", icon: LayoutDashboard },
+    { name: "Sales / POS", path: "/pos", icon: ShoppingCart },
+    { name: "Invoices", path: "/invoices", icon: FileText },
+    { name: "Purchases", path: "/purchases", icon: Boxes },
+    { name: "Products", path: "/products", icon: Package },
+    { name: "Customers", path: "/customers", icon: Users },
+    { name: "Waybill & Delivery", path: "/waybills", icon: Truck },
+    { name: "Reports", path: "/reports", icon: BarChart2 },
+    { name: "Staff & Users", path: "/users", icon: UserCog },
+    { name: "Settings", path: "/settings", icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -56,9 +59,8 @@ export default function Sidebar() {
     navigate("/login");
   };
 
-  const filteredNav = navItems.filter((item) => 
-    user && item.roles.includes(user.role)
-  );
+  // Bypass filtering completely so every single item displays instantly
+  const filteredNav = navItems;
 
   return (
     <>
@@ -72,8 +74,10 @@ export default function Sidebar() {
       </div>
 
       <div className={cn(
-        "fixed md:static inset-y-0 left-0 z-40 w-64 bg-blue-900 text-white flex flex-col transition-transform duration-300 ease-in-out",
+        <div className={cn(
+        "fixed md:sticky md:top-0 md:h-screen inset-y-0 left-0 z-40 w-64 bg-blue-900 text-white flex flex-col transition-transform duration-300 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+      )}>
       )}>
         <div className="p-6 hidden md:flex items-center gap-2 font-bold text-xl border-b border-blue-800">
           <Droplets className="text-amber-500" /> Croissance POS
@@ -81,24 +85,24 @@ export default function Sidebar() {
         
         <div className="p-4 text-sm text-blue-300">
           Welcome, {user?.fullName || user?.name || "User"} <br />
-          <span className="capitalize text-amber-500">({user?.role})</span>
+          <span className="capitalize text-amber-500">({user?.role || "Standard User"})</span>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4">
+        <nav className="flex-1 px-4 space-y-1.5 mt-2 overflow-y-auto">
           {filteredNav.map((item) => (
             <NavLink
               key={item.name}
               to={item.path}
               onClick={() => setIsOpen(false)}
               className={({ isActive }) => cn(
-                "flex items-center justify-between px-4 py-3 rounded-lg transition-colors",
+                "flex items-center justify-between px-4 py-2.5 rounded-lg transition-colors text-sm",
                 isActive 
                   ? "bg-blue-800 text-white border-l-4 border-amber-500" 
                   : "text-blue-200 hover:bg-blue-800 hover:text-white"
               )}
             >
               <div className="flex items-center gap-3">
-                <item.icon className="w-5 h-5" />
+                <item.icon className="w-4 h-4" />
                 <span>{item.name}</span>
               </div>
               {item.path === "/users" && onlineCount > 0 && (
@@ -112,31 +116,25 @@ export default function Sidebar() {
         </nav>
 
         <div className="p-4 border-t border-blue-800 space-y-2">
-          {user?.role === "admin" && (
-            <NavLink
-              to="/settings"
-              onClick={() => setIsOpen(false)}
-              className="block p-2.5 rounded-lg bg-blue-950/70 border border-blue-800/80 hover:bg-blue-800 transition-colors group"
-            >
-              <div className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>Google Sheets</span>
-                </span>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              </div>
-              <p className="text-[10px] text-blue-300 mt-1 flex items-center justify-between">
-                <span>9 Modules Sync</span>
-                <span className="text-amber-400 font-medium group-hover:underline">Open Sync</span>
-              </p>
-            </NavLink>
-          )}
+          <NavLink
+            to="/settings"
+            onClick={() => setIsOpen(false)}
+            className="block p-2.5 rounded-lg bg-blue-950/70 border border-blue-800/80 hover:bg-blue-800 transition-colors group"
+          >
+            <div className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Google Sheets Sync</span>
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            </div>
+          </NavLink>
 
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-left text-red-300 hover:bg-blue-800 rounded-lg transition-colors"
+            className="flex items-center gap-3 px-4 py-2.5 w-full text-left text-red-300 hover:bg-blue-800 rounded-lg transition-colors cursor-pointer text-sm"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
             Logout
           </button>
         </div>

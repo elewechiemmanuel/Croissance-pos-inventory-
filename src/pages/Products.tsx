@@ -1,9 +1,14 @@
 import React, { useState } from "react";
 import { useData } from "../context/DataContext";
+import { useAuth } from "../store/AuthContext";
 import { apiCall } from "../lib/api";
+import { Edit2, Trash2, Plus, AlertCircle, Package } from "lucide-react";
+import { formatCurrency } from "../lib/utils";
 
 export default function Products() {
   const { products, loading } = useData();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,8 +52,11 @@ export default function Products() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // --- OPEN MODAL FOR EDITING ---
   const handleEditClick = (product: any) => {
+    if (!isAdmin) {
+      alert("Access Denied: Only administrators can edit products.");
+      return;
+    }
     setEditingProduct(product);
     setFormData({
       name: product.name || "",
@@ -65,15 +73,18 @@ export default function Products() {
     setIsModalOpen(true);
   };
 
-  // --- DELETE PRODUCT ---
   const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (!isAdmin) {
+      alert("Access Denied: Only administrators can delete products.");
+      return;
+    }
+
     if (!window.confirm(`Are you sure you want to delete "${productName}"?`)) {
       return;
     }
 
     try {
       await apiCall("deleteProduct", { id: productId });
-      console.log(`Product ${productId} deleted successfully.`);
     } catch (error) {
       console.error("Failed to delete product:", error);
       alert(`Error deleting product: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -82,6 +93,11 @@ export default function Products() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      alert("Access Denied: Only administrators can save or modify products.");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -103,8 +119,6 @@ export default function Products() {
         updatedAt: new Date().toISOString()
       };
 
-      console.log("Submitting payload to Firebase:", payload);
-
       if (editingProduct) {
         await apiCall("updateProduct", { ...payload, id: editingProduct.id });
       } else {
@@ -122,255 +136,261 @@ export default function Products() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Products Inventory</h1>
-        <button
-          onClick={() => {
-            resetForm();
-            setIsModalOpen(true);
-          }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-        >
-          + Add Product
-        </button>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center bg-white p-5 rounded-2xl shadow-2xs border border-gray-100">
+        <div>
+          <h1 className="text-2xl font-bold text-blue-950">Products Inventory</h1>
+          <p className="text-xs text-gray-500 mt-1">Manage station products, wholesale pricing, and stock levels</p>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => {
+              resetForm();
+              setIsModalOpen(true);
+            }}
+            className="bg-blue-900 hover:bg-blue-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4 text-amber-400" />
+            <span>Add New Product</span>
+          </button>
+        )}
       </div>
 
       {/* Product List Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b bg-gray-50 text-gray-600 text-sm">
-              <th className="p-4">NAME</th>
-              <th className="p-4">CATEGORY</th>
-              <th className="p-4">UNIT</th>
-              <th className="p-4">COST PRICE</th>
-              <th className="p-4">RETAIL PRICE</th>
-              <th className="p-4">WHOLESALE</th>
-              <th className="p-4">STOCK</th>
-              <th className="p-4">STATUS</th>
-              <th className="p-4 text-center">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} className="p-4 text-center text-gray-500">
-                  Loading products...
-                </td>
+      <div className="bg-white rounded-2xl shadow-2xs border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/80 text-gray-600 text-xs font-bold uppercase tracking-wider">
+                <th className="px-5 py-3.5">Name</th>
+                <th className="px-4 py-3.5">Category</th>
+                <th className="px-4 py-3.5">Unit</th>
+                <th className="px-4 py-3.5">Cost Price</th>
+                <th className="px-4 py-3.5">Retail Price</th>
+                <th className="px-4 py-3.5">Wholesale Price</th>
+                <th className="px-4 py-3.5">Stock</th>
+                <th className="px-4 py-3.5">Status</th>
+                <th className="px-5 py-3.5 text-right">Actions</th>
               </tr>
-            ) : products && products.length > 0 ? (
-              products.map((product: any) => (
-                <tr key={product.id} className="border-b hover:bg-gray-50 text-sm">
-                  <td className="p-4 font-medium">{product.name}</td>
-                  <td className="p-4">{product.category}</td>
-                  <td className="p-4">{product.unit}</td>
-                  <td className="p-4">₦{Number(product.buyingPrice || 0).toLocaleString()}</td>
-                  <td className="p-4">₦{Number(product.sellingPrice || 0).toLocaleString()}</td>
-                  <td className="p-4">₦{Number(product.wholesalePrice || 0).toLocaleString()}</td>
-                  <td className="p-4 font-semibold text-blue-600">
-                    {product.currentStock ?? product.openingStock ?? 0}
-                  </td>
-                  <td className="p-4">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-semibold ${
-                        product.status === "Active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {product.status || "Active"}
-                    </span>
-                  </td>
-                  <td className="p-4 text-center space-x-2">
-                    <button
-                      onClick={() => handleEditClick(product)}
-                      className="px-3 py-1 bg-amber-500 text-white rounded text-xs hover:bg-amber-600 transition"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteProduct(product.id, product.name)}
-                      className="px-3 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 transition"
-                    >
-                      Delete
-                    </button>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center text-gray-400">
+                    <Package className="w-8 h-8 mx-auto mb-2 opacity-30 animate-pulse" />
+                    <p className="text-xs">Loading inventory products...</p>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={9} className="p-4 text-center text-gray-500">
-                  No products found. Add your first product above!
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              ) : products && products.length > 0 ? (
+                products.map((product: any) => (
+                  <tr key={product.id} className="hover:bg-blue-50/20 transition-colors">
+                    <td className="px-5 py-3.5 font-bold text-gray-900">{product.name}</td>
+                    <td className="px-4 py-3.5">
+                      <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold">
+                        {product.category}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-gray-600 font-medium">{product.unit}</td>
+                    <td className="px-4 py-3.5 text-gray-800">{formatCurrency(Number(product.buyingPrice || 0))}</td>
+                    <td className="px-4 py-3.5 font-bold text-blue-950">{formatCurrency(Number(product.sellingPrice || 0))}</td>
+                    <td className="px-4 py-3.5 text-purple-900 font-semibold">{formatCurrency(Number(product.wholesalePrice || 0))}</td>
+                    <td className="px-4 py-3.5 font-bold text-blue-600">
+                      {product.currentStock ?? product.openingStock ?? 0}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                          product.status === "Active" 
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {product.status || "Active"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      {isAdmin && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleEditClick(product)}
+                            className="p-1.5 text-gray-500 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Edit product"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id, product.name)}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title="Delete product"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center text-gray-400">
+                    <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="font-semibold text-sm text-gray-600">No products found</p>
+                    <p className="text-xs text-gray-400 mt-1">Click "Add New Product" to populate your inventory.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Product Modal (Add / Edit) */}
+      {/* Add/Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4">
-              {editingProduct ? "Edit Product" : "Add New Product"}
-            </h2>
-            <form onSubmit={handleSaveProduct} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Product Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="e.g. Cooking Gas 12.5kg"
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-blue-950 text-white">
+              <h3 className="font-bold text-base">
+                {editingProduct ? "Edit Product Details" : "Register New Product"}
+              </h3>
+              <button 
+                onClick={() => setIsModalOpen(false)}
+                className="text-blue-200 hover:text-white cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
-                {showNewCategoryInput ? (
+            <form onSubmit={handleSaveProduct} className="p-6 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Product Name *</label>
                   <input
                     type="text"
-                    placeholder="Enter new category"
-                    value={newCategoryName}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    className="w-full border p-2 rounded"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Premium Motor Spirit (PMS)"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
-                ) : (
-                  <select
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">SKU Code</label>
+                  <input
+                    type="text"
+                    name="sku"
+                    value={formData.sku}
+                    onChange={handleInputChange}
+                    placeholder="Auto-generated if empty"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Category *</label>
+                  <input
+                    type="text"
                     name="category"
+                    required
                     value={formData.category}
-                    onChange={(e) => {
-                      if (e.target.value === "ADD_NEW") {
-                        setShowNewCategoryInput(true);
-                      } else {
-                        handleInputChange(e);
-                      }
-                    }}
-                    className="w-full border p-2 rounded"
-                  >
-                    <option value="">Select Category</option>
-                    <option value="General">General</option>
-                    <option value="LPG">LPG</option>
-                    <option value="Diesel">Diesel</option>
-                    <option value="Kerosene">Kerosene</option>
-                    <option value="ADD_NEW">+ Add New Category</option>
-                  </select>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Buying Price (₦)</label>
-                  <input
-                    type="number"
-                    name="buyingPrice"
-                    value={formData.buyingPrice}
                     onChange={handleInputChange}
-                    placeholder="0.00"
-                    className="w-full border p-2 rounded"
+                    placeholder="e.g. Fuels / Lubricants"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Selling Price (₦)</label>
-                  <input
-                    type="number"
-                    name="sellingPrice"
-                    value={formData.sellingPrice}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    className="w-full border p-2 rounded"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Wholesale Price (₦)</label>
-                  <input
-                    type="number"
-                    name="wholesalePrice"
-                    value={formData.wholesalePrice}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    className="w-full border p-2 rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Unit</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Unit of Measure *</label>
                   <select
                     name="unit"
                     value={formData.unit}
                     onChange={handleInputChange}
-                    className="w-full border p-2 rounded"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-medium cursor-pointer"
                   >
-                    <option value="KG">KG</option>
-                    <option value="Litre">Litre</option>
-                    <option value="Pcs">Pcs</option>
-                    <option value="Bag">Bag</option>
+                    <option value="LTR">Liters (LTR)</option>
+                    <option value="KG">Kilograms (KG)</option>
+                    <option value="DRUM">Drum</option>
+                    <option value="PC">Pieces (PC)</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Opening Stock</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Cost Price (₦)</label>
                   <input
                     type="number"
-                    name="openingStock"
-                    value={formData.openingStock}
+                    step="0.01"
+                    name="buyingPrice"
+                    value={formData.buyingPrice}
                     onChange={handleInputChange}
-                    placeholder="e.g. 50"
-                    className="w-full border p-2 rounded"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Min Stock Alert</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Retail Price (₦) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="sellingPrice"
+                    required
+                    value={formData.sellingPrice}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-bold text-blue-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Wholesale Price (₦)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="wholesalePrice"
+                    value={formData.wholesalePrice}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-bold text-purple-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Opening Stock *</label>
+                  <input
+                    type="number"
+                    name="openingStock"
+                    required
+                    value={formData.openingStock}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Min. Stock Alert Level</label>
                   <input
                     type="number"
                     name="minStock"
                     value={formData.minStock}
                     onChange={handleInputChange}
-                    placeholder="e.g. 5"
-                    className="w-full border p-2 rounded"
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Status</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleInputChange}
-                  className="w-full border p-2 rounded"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end space-x-3 mt-6">
+              <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    resetForm();
-                  }}
-                  className="px-4 py-2 border rounded hover:bg-gray-100"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  className="px-5 py-2 text-xs font-bold bg-blue-900 text-white hover:bg-blue-800 rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
                 >
-                  {isLoading ? "Saving..." : editingProduct ? "Update Product" : "Save Product"}
+                  {isLoading ? "Saving..." : "Save Product"}
                 </button>
               </div>
             </form>

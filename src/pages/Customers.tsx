@@ -509,569 +509,585 @@ export default function Customers() {
                                 <span>{c.businessName}</span>
                               </p>
                             )}
-                          </div>
                         </div>
-                      </td>
+                      </div>
+                    </td>
 
-                      {/* Customer Type */}
-                      <td className="px-4 py-3.5">
-                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide ${
-                          isWholesale ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {c.type}
-                        </span>
-                      </td>
+                    {/* Customer Type */}
+                    <td className="px-4 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wide ${
+                        isWholesale ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {c.type}
+                      </span>
+                  </td>
 
-                      {/* Contact & Location */}
-                      <td className="px-4 py-3.5 text-xs text-gray-600">
-                        <div className="space-y-0.5">
-                          <p className="font-medium text-gray-800">{c.phone || "No phone recorded"}</p>
-                          {c.address && (
-                            <p className="text-[11px] text-gray-400 truncate max-w-xs" title={c.address}>
-                              {c.address}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Credit Limit */}
-                      <td className="px-4 py-3.5 text-right font-bold text-gray-800">
-                        {isWholesale ? (
-                          <div className="text-right">
-                            <span className="text-gray-900 font-bold">{formatCurrency(limit)}</span>
-                            {limit === 0 && (
-                              <p className="text-[10px] text-gray-400 font-normal">Prepaid / No limit</p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs italic">N/A (Prepaid)</span>
-                        )}
-                      </td>
-
-                      {/* Outstanding Balance */}
-                      <td className="px-4 py-3.5 text-right">
-                        {isWholesale ? (
-                          <div className="text-right">
-                            {balance > 0 ? (
-                              <span className="inline-flex items-center gap-1 font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-lg border border-red-100">
-                                <AlertTriangle className="w-3 h-3 text-red-600" />
-                                {formatCurrency(balance)}
-                              </span>
-                            ) : (
-                              <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-lg text-xs">
-                                ₦0.00 (Cleared)
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs italic">—</span>
-                        )}
-                      </td>
-
-                      {/* Credit Utilization Status */}
-                      <td className="px-4 py-3.5">
-                        {isWholesale && limit > 0 ? (
-                          <div className="w-36 mx-auto space-y-1">
-                            <div className="flex justify-between text-[10px] font-semibold">
-                              <span className={isOverLimit ? "text-red-700 font-bold" : "text-gray-500"}>
-                                {isOverLimit ? "Exceeded" : `${utilPercent}% Used`}
-                              </span>
-                              <span className={availableCredit >= 0 ? "text-emerald-700" : "text-red-600 font-bold"}>
-                                {availableCredit >= 0 
-                                  ? `${formatCurrency(availableCredit)} free` 
-                                  : `-${formatCurrency(Math.abs(availableCredit))}`
-                                }
-                              </span>
-                            </div>
-                            <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full transition-all duration-300 ${
-                                  isOverLimit || utilPercent > 85 
-                                    ? "bg-red-600" 
-                                    : utilPercent > 60 
-                                    ? "bg-amber-500" 
-                                    : "bg-emerald-500"
-                                }`} 
-                                style={{ width: `${Math.min(100, isOverLimit ? 100 : utilPercent)}%` }} 
-                              />
-                            </div>
-                          </div>
-                        ) : isWholesale ? (
-                          <div className="text-center text-[11px] text-gray-400">Zero Credit Facility</div>
-                        ) : (
-                          <div className="text-center text-[11px] text-gray-400">Retail Client</div>
-                        )}
-                      </td>
-
-                      {/* Cumulative Total Purchases */}
-                      <td className="px-4 py-3.5 text-right font-bold text-blue-950">
-                        {formatCurrency(c.totalPurchases || 0)}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Record Payment Button */}
-                          {isWholesale && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPayment(c)}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
-                                balance > 0
-                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
-                                  : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                              }`}
-                              title={balance > 0 ? "Record Debt Settlement / Payment" : "Record Advance / Payment"}
-                            >
-                              <ArrowDownRight className="w-3.5 h-3.5" />
-                              <span>{balance > 0 ? "Pay Debt" : "Pay"}</span>
-                            </button>
-                          )}
-
-                          {/* Edit Customer */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(c)}
-                            className="p-1.5 text-gray-500 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit customer details & credit terms"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete Customer */}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCustomer(c)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete customer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* --- MODAL 1: ADD NEW CUSTOMER --- */}
-      {isAdding && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-blue-950 text-white">
-              <div className="flex items-center gap-2">
-                <Plus className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-base">Register New Customer</h3>
-              </div>
-              <button 
-                onClick={() => setIsAdding(false)}
-                className="p-1 hover:bg-blue-900 rounded-full transition-colors text-blue-200 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddCustomer} className="p-6 overflow-y-auto space-y-4">
-              {formError && (
-                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Full Name / Contact Person *
-                  </label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={fullName} 
-                    onChange={e => setFullName(e.target.value)} 
-                    placeholder="e.g. Alhaji Musa Bello"
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Phone Number *
-                  </label>
-                  <input 
-                    required 
-                    type="tel" 
-                    value={phone} 
-                    onChange={e => setPhone(e.target.value)} 
-                    placeholder="e.g. 08012345678"
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Customer Account Type *
-                  </label>
-                  <select 
-                    value={type} 
-                    onChange={e => setType(e.target.value as any)} 
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-medium cursor-pointer"
-                  >
-                    <option value="Retail">Retail (Instant Payment / Cash &amp; POS)</option>
-                    <option value="Wholesale">Wholesale (Bulk Client / Credit Facility Eligible)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Email Address (Optional)
-                  </label>
-                  <input 
-                    type="email" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    placeholder="e.g. client@company.com"
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                  />
-                </div>
-              </div>
-
-              {type === "Wholesale" && (
-                <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-4 animate-in fade-in">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-purple-700" />
-                    <h4 className="font-bold text-xs text-purple-900 uppercase tracking-wider">Wholesale Business &amp; Credit Terms</h4>
+                  {/* Contact & Location */}
+                  <td className="px-4 py-3.5 text-xs text-gray-600">
+                    <div className="space-y-0.5">
+                      <p className="font-medium text-gray-800">{c.phone || "No phone recorded"}</p>
+                      {c.address && (
+                        <p className="text-[11px] text-gray-400 truncate max-w-xs" title={c.address}>
+                          {c.address}
+                        </p>
+                      )}
                   </div>
+                </td>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Business/Company Name</label>
-                      <input 
-                        type="text" 
-                        value={businessName} 
-                        onChange={e => setBusinessName(e.target.value)} 
-                        placeholder="e.g. Bello &amp; Sons Ltd"
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Credit Limit (₦)</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={creditLimit} 
-                        onChange={e => setCreditLimit(e.target.value)} 
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600 font-bold" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Opening Debt Balance (₦)</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={outstandingBalance} 
-                        onChange={e => setOutstandingBalance(e.target.value)} 
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600 font-bold text-red-700" 
-                      />
-                    </div>
+                {/* Credit Limit */}
+                <td className="px-4 py-3.5 text-right font-bold text-gray-800">
+                  {isWholesale ? (
+                    <div className="text-right">
+                      <span className="text-gray-900 font-bold">{formatCurrency(limit)}</span>
+                      {limit === 0 && (
+                        <p className="text-[10px] text-gray-400 font-normal">Prepaid / No limit</p>
+                      )}
                   </div>
+                  ) : (
+                    <span className="text-gray-400 text-xs italic">N/A (Prepaid)</span>
+                  )}
+              </td>
+
+              {/* Outstanding Balance */}
+              <td className="px-4 py-3.5 text-right">
+                {isWholesale ? (
+                  <div className="text-right">
+                    {balance > 0 ? (
+                      <span className="inline-flex items-center gap-1 font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-lg border border-red-100">
+                        <AlertTriangle className="w-3 h-3 text-red-600" />
+                        {formatCurrency(balance)}
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-lg text-xs">
+                        ₦0.00 (Cleared)
+                      </span>
+                    )}
                 </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Physical Address / Location
-                </label>
-                <input 
-                  type="text" 
-                  value={address} 
-                  onChange={e => setAddress(e.target.value)} 
-                  placeholder="e.g. Suite 4, Central Market, Kano"
-                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setIsAdding(false)} 
-                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting} 
-                  className="px-5 py-2 text-xs font-bold bg-blue-900 text-white hover:bg-blue-800 rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-                >
-                  {isSubmitting ? "Registering..." : "Save Customer"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL 2: EDIT CUSTOMER --- */}
-      {editingCustomer && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-blue-950 text-white">
-              <div className="flex items-center gap-2">
-                <Edit2 className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-base">Edit Customer: {editingCustomer.fullName}</h3>
-              </div>
-              <button 
-                onClick={() => setEditingCustomer(null)}
-                className="p-1 hover:bg-blue-900 rounded-full transition-colors text-blue-200 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateCustomer} className="p-6 overflow-y-auto space-y-4">
-              {editError && (
-                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{editError}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Full Name / Contact Person *
-                  </label>
-                  <input 
-                    required 
-                    type="text" 
-                    value={editFullName} 
-                    onChange={e => setEditFullName(e.target.value)} 
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Phone Number *
-                  </label>
-                  <input 
-                    required 
-                    type="tel" 
-                    value={editPhone} 
-                    onChange={e => setEditPhone(e.target.value)} 
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Customer Account Type *
-                  </label>
-                  <select 
-                    value={editType} 
-                    onChange={e => setEditType(e.target.value as any)} 
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 font-medium cursor-pointer"
-                  >
-                    <option value="Retail">Retail</option>
-                    <option value="Wholesale">Wholesale</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                    Email Address
-                  </label>
-                  <input 
-                    type="email" 
-                    value={editEmail} 
-                    onChange={e => setEditEmail(e.target.value)} 
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                  />
-                </div>
-              </div>
-
-              {editType === "Wholesale" && (
-                <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-purple-700" />
-                    <h4 className="font-bold text-xs text-purple-900 uppercase tracking-wider">Wholesale Terms &amp; Debt Settings</h4>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Business/Company Name</label>
-                      <input 
-                        type="text" 
-                        value={editBusinessName} 
-                        onChange={e => setEditBusinessName(e.target.value)} 
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Credit Limit (₦)</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={editCreditLimit} 
-                        onChange={e => setEditCreditLimit(e.target.value)} 
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600 font-bold" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Outstanding Balance (₦)</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={editOutstandingBalance} 
-                        onChange={e => setEditOutstandingBalance(e.target.value)} 
-                        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600 font-bold text-red-700" 
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Physical Address
-                </label>
-                <input 
-                  type="text" 
-                  value={editAddress} 
-                  onChange={e => setEditAddress(e.target.value)} 
-                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
-                />
-              </div>
-
-              <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setEditingCustomer(null)} 
-                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isUpdating} 
-                  className="px-5 py-2 text-xs font-bold bg-blue-900 text-white hover:bg-blue-800 rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-                >
-                  {isUpdating ? "Updating..." : "Update Customer"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- MODAL 3: RECORD DEBT PAYMENT --- */}
-      {paymentCustomer && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-emerald-800 text-white">
-              <div className="flex items-center gap-2">
-                <ArrowDownRight className="w-5 h-5 text-amber-300" />
-                <h3 className="font-bold text-base">Record Payment / Settlement</h3>
-              </div>
-              <button 
-                onClick={() => setPaymentCustomer(null)}
-                className="p-1 hover:bg-emerald-700 rounded-full transition-colors text-emerald-200 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-xl">
-                <p className="text-xs text-emerald-800 font-semibold uppercase tracking-wider">Customer Account</p>
-                <p className="text-base font-bold text-gray-900 mt-0.5">{paymentCustomer.fullName}</p>
-                {paymentCustomer.businessName && (
-                  <p className="text-xs text-gray-600 font-medium">{paymentCustomer.businessName}</p>
+                ) : (
+                  <span className="text-gray-400 text-xs italic">—</span>
                 )}
-                <div className="mt-2 pt-2 border-t border-emerald-200/60 flex justify-between items-center text-xs">
-                  <span className="text-gray-600">Current Outstanding Debt:</span>
-                  <span className="font-bold text-red-700 text-sm">
-                    {formatCurrency(Number(paymentCustomer.outstandingBalance || 0))}
-                  </span>
-                </div>
-              </div>
+            </td>
 
-              {paymentError && (
-                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{paymentError}</span>
+            {/* Credit Utilization Status */}
+            <td className="px-4 py-3.5">
+              {isWholesale && limit > 0 ? (
+                <div className="w-36 mx-auto space-y-1">
+                  <div className="flex justify-between text-[10px] font-semibold">
+                    <span className={isOverLimit ? "text-red-700 font-bold" : "text-gray-500"}>
+                      {isOverLimit ? "Exceeded" : `${utilPercent}% Used`}
+                    </span>
+                    <span className={availableCredit >= 0 ? "text-emerald-700" : "text-red-600 font-bold"}>
+                      {availableCredit >= 0 
+                        ? `${formatCurrency(availableCredit)} free` 
+                        : `-${formatCurrency(Math.abs(availableCredit))}`
+                      }
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-300 ${
+                        isOverLimit || utilPercent > 85 
+                          ? "bg-red-600" 
+                          : utilPercent > 60 
+                          ? "bg-amber-500" 
+                          : "bg-emerald-500"
+                      }`} 
+                      style={{ width: `${Math.min(100, isOverLimit ? 100 : utilPercent)}%` }} 
+                    />
+                  </div>
                 </div>
+              ) : isWholesale ? (
+                <div className="text-center text-[11px] text-gray-400">Zero Credit Facility</div>
+              ) : (
+                <div className="text-center text-[11px] text-gray-400">Retail Client</div>
               )}
+            </td>
 
+            {/* Cumulative Total Purchases */}
+            <td className="px-4 py-3.5 text-right font-bold text-blue-950">
+              {formatCurrency(c.totalPurchases || 0)}
+            </td>
+
+            {/* Actions */}
+            <td className="px-5 py-3.5 text-right">
+              <div className="flex items-center justify-end gap-1.5">
+                {/* Record Payment Button */}
+                {isWholesale && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPayment(c)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
+                      balance > 0
+                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    }`}
+                    title={balance > 0 ? "Record Debt Settlement / Payment" : "Record Advance / Payment"}
+                  >
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                    <span>{balance > 0 ? "Pay Debt" : "Pay"}</span>
+                  </button>
+                )}
+
+                {/* Edit Customer */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(c)}
+                  className="p-1.5 text-gray-500 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                  title="Edit customer details & credit terms"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Delete Customer */}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCustomer(c)}
+                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  title="Delete customer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </td>
+          </tr>
+            );
+          })
+          )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* --- MODAL 1: ADD NEW CUSTOMER --- */}
+    {isAdding && (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+        <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-blue-950 text-white">
+            <div className="flex items-center gap-2">
+              <Plus className="w-5 h-5 text-amber-400" />
+              <h3 className="font-bold text-base">Register New Customer</h3>
+            </div>
+            <button 
+              onClick={() => setIsAdding(false)}
+              className="p-1 hover:bg-blue-900 rounded-full transition-colors text-blue-200 hover:text-white cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleAddCustomer} className="p-6 overflow-y-auto space-y-4">
+            {formError && (
+              <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Payment Amount (₦) *
+                  Full Name / Contact Person *
                 </label>
                 <input 
                   required 
-                  type="number" 
-                  step="0.01"
-                  min="1"
-                  value={paymentAmount} 
-                  onChange={e => setPaymentAmount(e.target.value)} 
-                  className="w-full px-3 py-2 text-base font-bold text-emerald-950 bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600" 
+                  type="text" 
+                  value={fullName} 
+                  onChange={e => setFullName(e.target.value)} 
+                  placeholder="e.g. Alhaji Musa Bello"
+                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Payment Method *
-                </label>
-                <select 
-                  value={paymentMethod} 
-                  onChange={e => setPaymentMethod(e.target.value)} 
-                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600 font-medium cursor-pointer"
-                >
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Cash">Cash</option>
-                  <option value="POS / Card">POS / Card</option>
-                  <option value="Cheque">Cheque</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
-                  Reference / Receipt No.
+                  Phone Number *
                 </label>
                 <input 
+                  required 
                   type="text" 
-                  value={paymentReference} 
-                  onChange={e => setPaymentReference(e.target.value)} 
-                  placeholder="e.g. TRF-123456"
-                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600" 
+                  value={phone} 
+                  onChange={e => setPhone(e.target.value)} 
+                  placeholder="e.g. 08030000000"
+                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Email Address
+                </label>
+                <input 
+                  type="email" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  placeholder="e.g. musa@business.com"
+                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
                 />
               </div>
 
-              <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                <button 
-                  type="button" 
-                  onClick={() => setPaymentCustomer(null)} 
-                  className="px-4 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Customer Type *
+                </label>
+                <select 
+                  value={type} 
+                  onChange={e => setType(e.target.value as "Retail" | "Wholesale")}
+                  className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                 >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={isRecordingPayment} 
-                  className="px-5 py-2 text-xs font-bold bg-emerald-700 text-white hover:bg-emerald-800 rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
-                >
-                  {isRecordingPayment ? "Processing..." : "Confirm & Record Payment"}
-                </button>
+                  <option value="Retail">Retail Customer</option>
+                  <option value="Wholesale">Wholesale Distributor</option>
+                </select>
               </div>
-            </form>
+            </div>
+
+            {type === "Wholesale" && (
+              <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100 space-y-4">
+                <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider">Wholesale &amp; Credit Terms</h4>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Business / Company Name *
+                  </label>
+                  <input 
+                    required={type === "Wholesale"}
+                    type="text" 
+                    value={businessName} 
+                    onChange={e => setBusinessName(e.target.value)} 
+                    placeholder="e.g. Bello Enterprises Ltd"
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                      Credit Limit (₦)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      step="any"
+                      value={creditLimit} 
+                      onChange={e => setCreditLimit(e.target.value)} 
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                      Initial Outstanding Debt (₦)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="0"
+                      step="any"
+                      value={outstandingBalance} 
+                      onChange={e => setOutstandingBalance(e.target.value)} 
+                      className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                Delivery Address / Location
+              </label>
+              <textarea 
+                rows={2}
+                value={address} 
+                onChange={e => setAddress(e.target.value)} 
+                placeholder="e.g. Shop 14, Main Market, Lagos"
+                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
+            />
           </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+            <button 
+              type="button"
+              onClick={() => setIsAdding(false)}
+              className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="px-5 py-2 bg-blue-900 text-white rounded-xl text-xs font-bold hover:bg-blue-800 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+            >
+              {isSubmitting && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              <span>Save Customer</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
+
+  {/* --- MODAL 2: EDIT CUSTOMER --- */}
+  {editingCustomer && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-blue-950 text-white">
+          <div className="flex items-center gap-2">
+            <Edit2 className="w-5 h-5 text-amber-400" />
+            <h3 className="font-bold text-base">Edit Customer Account</h3>
+          </div>
+          <button 
+            onClick={() => setEditingCustomer(null)}
+            className="p-1 hover:bg-blue-900 rounded-full transition-colors text-blue-200 hover:text-white cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      )}
+
+        <form onSubmit={handleUpdateCustomer} className="p-6 overflow-y-auto space-y-4">
+          {editError && (
+            <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{editError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                Full Name / Contact Person *
+              </label>
+              <input 
+                required 
+                type="text" 
+                value={editFullName} 
+                onChange={e => setEditFullName(e.target.value)} 
+                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                Phone Number *
+              </label>
+              <input 
+                required 
+                type="text" 
+                value={editPhone} 
+                onChange={e => setEditPhone(e.target.value)} 
+                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                Email Address
+              </label>
+              <input 
+                type="email" 
+                value={editEmail} 
+                onChange={e => setEditEmail(e.target.value)} 
+                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                Customer Type *
+              </label>
+              <select 
+                value={editType} 
+                onChange={e => setEditType(e.target.value as "Retail" | "Wholesale")}
+                className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="Retail">Retail Customer</option>
+                <option value="Wholesale">Wholesale Distributor</option>
+              </select>
+            </div>
+          </div>
+
+          {editType === "Wholesale" && (
+            <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100 space-y-4">
+              <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider">Wholesale &amp; Credit Terms</h4>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Business / Company Name *
+                </label>
+                <input 
+                  required={editType === "Wholesale"}
+                  type="text" 
+                  value={editBusinessName} 
+                  onChange={e => setEditBusinessName(e.target.value)} 
+                  className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Credit Limit (₦)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="any"
+                    value={editCreditLimit} 
+                    onChange={e => setEditCreditLimit(e.target.value)} 
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Outstanding Balance (₦)
+                  </label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="any"
+                    value={editOutstandingBalance} 
+                    onChange={e => setEditOutstandingBalance(e.target.value)} 
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600" 
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+              Delivery Address / Location
+            </label>
+            <textarea 
+              rows={2}
+              value={editAddress} 
+              onChange={e => setEditAddress(e.target.value)} 
+              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600" 
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+            <button 
+              type="button"
+              onClick={() => setEditingCustomer(null)}
+              className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              disabled={isUpdating}
+              className="px-5 py-2 bg-blue-900 text-white rounded-xl text-xs font-bold hover:bg-blue-800 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+            >
+              {isUpdating && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              <span>Update Changes</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
+
+  {/* --- MODAL 3: RECORD PAYMENT / DEBT SETTLEMENT --- */}
+  {paymentCustomer && (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-emerald-900 text-white">
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-amber-300" />
+            <h3 className="font-bold text-base">Record Payment / Debt Settlement</h3>
+          </div>
+          <button 
+            onClick={() => setPaymentCustomer(null)}
+            className="p-1 hover:bg-emerald-800 rounded-full transition-colors text-emerald-200 hover:text-white cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleRecordPayment} className="p-6 space-y-4">
+          {paymentError && (
+            <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{paymentError}</span>
+            </div>
+          )}
+
+          <div className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 space-y-1">
+            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Customer Account</p>
+            <p className="font-bold text-gray-900 text-sm">{paymentCustomer.fullName}</p>
+            {paymentCustomer.businessName && (
+              <p className="text-xs text-purple-700 font-medium">{paymentCustomer.businessName}</p>
+            )}
+            <div className="pt-2 flex justify-between items-center border-t border-gray-200 mt-2">
+              <span className="text-xs text-gray-600">Current Outstanding Balance:</span>
+              <span className="font-bold text-red-700">{formatCurrency(paymentCustomer.outstandingBalance || 0)}</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+              Payment Amount (₦) *
+            </label>
+            <input 
+              required
+              type="number"
+              min="1"
+              step="any"
+              value={paymentAmount}
+              onChange={e => setPaymentAmount(e.target.value)}
+              placeholder="Enter amount paid"
+              className="w-full px-3 py-2.5 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600 font-bold text-emerald-800"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+              Payment Method *
+            </label>
+            <select
+              value={paymentMethod}
+              onChange={e => setPaymentMethod(e.target.value)}
+              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600"
+            >
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Cash">Cash</option>
+              <option value="POS / Card">POS / Card</option>
+              <option value="Cheque">Cheque</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+              Reference / Teller Number
+            </label>
+            <input 
+              type="text"
+              value={paymentReference}
+              onChange={e => setPaymentReference(e.target.value)}
+              placeholder="e.g. TRF-982311"
+              className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-3 border-t border-gray-100">
+            <button 
+              type="button"
+              onClick={() => setPaymentCustomer(null)}
+              className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              disabled={isRecordingPayment}
+              className="px-5 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-800 disabled:opacity-50 cursor-pointer flex items-center gap-2"
+            >
+              {isRecordingPayment && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+              <span>Confirm Payment</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
     </div>
   );
 }

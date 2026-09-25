@@ -1,16 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { db } from "../firebase";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { useAuth } from "../store/AuthContext";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function Reports() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Queries the "sales" collection in real-time, ordered by newest first
+    if (!isAdmin) {
+      setLoading(false);
+      return;
+    }
+
     const q = query(collection(db, "sales"), orderBy("createdAt", "desc"));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -26,16 +34,55 @@ export default function Reports() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isAdmin]);
+
+  // Robust helper to completely resolve the "Just now" bug and malformed strings
+  const formatSaleDate = (sale: any) => {
+    const rawDate = sale.createdAt || sale.date || sale.timestamp;
+    
+    // If the database stored a literal string like "Just now" or invalid text, 
+    // handle it safely instead of letting new Date() break or display incorrectly.
+    if (!rawDate) return "N/A";
+    if (typeof rawDate === "string" && (rawDate.toLowerCase() === "just now" || isNaN(Date.parse(rawDate)))) {
+      // Fallbacks if a transaction has a legacy placeholder string
+      return sale.updatedAt ? new Date(sale.updatedAt).toLocaleString() : "Recent";
+    }
+
+    let date: Date;
+
+    // If it's a Firestore Timestamp object with .toDate()
+    if (typeof rawDate.toDate === "function") {
+      date = rawDate.toDate();
+    } 
+    // If it's an object with seconds (serialized Firestore timestamp)
+    else if (typeof rawDate === "object" && typeof rawDate.seconds === "number") {
+      date = new Date(rawDate.seconds * 1000);
+    } 
+    else {
+      date = new Date(rawDate);
+    }
+
+    if (isNaN(date.getTime())) return "N/A";
+
+    return new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(date);
+  };
 
   // --- EXPORT TO EXCEL ---
   const exportToExcel = () => {
+    if (!isAdmin) return;
     const dataToExport = sales.map((sale, index) => ({
       "S/N": index + 1,
       "Transaction ID": sale.transactionId || sale.id,
       "Total Amount (₦)": sale.totalAmount || sale.total || 0,
       "Payment Method": sale.paymentMethod || "Cash",
-      "Date": sale.createdAt?.toDate?.() ? sale.createdAt.toDate().toLocaleString() : "N/A"
+      "Date": formatSaleDate(sale)
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -46,9 +93,9 @@ export default function Reports() {
 
   // --- EXPORT TO PDF ---
   const exportToPDF = () => {
+    if (!isAdmin) return;
     const doc = new jsPDF();
 
-    // Title header
     doc.setFontSize(18);
     doc.text("Croissance POS - Sales Report", 14, 20);
     
@@ -56,14 +103,13 @@ export default function Reports() {
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 28);
 
-    // Table mapping
     const tableColumn = ["S/N", "Transaction ID", "Total Amount (₦)", "Payment Method", "Date"];
     const tableRows = sales.map((sale, index) => [
       index + 1,
       sale.transactionId || sale.id,
       `₦${(sale.totalAmount || sale.total || 0).toLocaleString()}`,
       sale.paymentMethod || "Cash",
-      sale.createdAt?.toDate?.() ? sale.createdAt.toDate().toLocaleString() : "N/A"
+      formatSaleDate(sale)
     ]);
 
     autoTable(doc, {
@@ -71,11 +117,25 @@ export default function Reports() {
       body: tableRows,
       startY: 35,
       theme: "grid",
-      headStyles: { fillColor: [41, 128, 185] }, // Professional blue header
+      headStyles: { fillColor: [41, 128, 185] },
     });
 
     doc.save("Croissance_Sales_Report.pdf");
   };
+
+  // --- SECURITY BLOCK FOR NON-ADMINS ---
+  if (!isAdmin) {
+    return (
+      <div style={{ padding: "40px", textAlign: "center", fontFamily: "sans-serif" }}>
+        <div style={{ background: "#fff5f5", border: "1px solid #feb2b2", color: "#c53030", padding: "30px", borderRadius: "8px", maxWidth: "450px", margin: "0 auto", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+          <h2 style={{ marginBottom: "10px", fontSize: "20px" }}>Access Restricted</h2>
+          <p style={{ fontSize: "14px", lineHeight: "1.5" }}>
+            You do not have permission to view sensitive financial reports and sales metrics. Only administrators are authorized to access this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <div style={{ padding: "20px" }}>Loading reports...</div>;
 
@@ -84,7 +144,6 @@ export default function Reports() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <h2>Sales Reports & History</h2>
         
-        {/* Export Action Buttons */}
         <div style={{ display: "flex", gap: "10px" }}>
           <button 
             onClick={exportToExcel} 
@@ -110,7 +169,7 @@ export default function Reports() {
               <th>Transaction ID</th>
               <th>Total Amount</th>
               <th>Payment Method</th>
-              <th>Date</th>
+              <th>Date &amp; Time</th>
             </tr>
           </thead>
           <tbody>
@@ -126,7 +185,7 @@ export default function Reports() {
                   <td style={{ fontWeight: "500" }}>{sale.transactionId || sale.id}</td>
                   <td>₦{(sale.totalAmount || sale.total || 0).toLocaleString()}</td>
                   <td>{sale.paymentMethod || "Cash"}</td>
-                  <td>{sale.createdAt?.toDate?.() ? sale.createdAt.toDate().toLocaleString() : "Just now"}</td>
+                  <td>{formatSaleDate(sale)}</td>
                 </tr>
               ))
             )}

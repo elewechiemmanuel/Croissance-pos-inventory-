@@ -288,14 +288,17 @@ export async function apiCall(action: string, payload: any = {}) {
     }
 
     if (action === "getInitialData") {
-      const [productsSnap, salesSnap, purchasesSnap, customersSnap, usersSnap, waybillsSnap] = await Promise.all([
+      const [productsSnap, salesSnap, purchasesSnap, customersSnap, usersSnap, waybillsSnap, settingsSnap] = await Promise.all([
         getDocs(collection(db, "products")),
         getDocs(collection(db, "sales")),
         getDocs(collection(db, "purchases")),
         getDocs(collection(db, "customers")),
         getDocs(collection(db, "users")),
-        getDocs(collection(db, "waybills"))
+        getDocs(collection(db, "waybills")),
+        getDocs(collection(db, "settings"))
       ]);
+
+      const settingsData = !settingsSnap.empty ? settingsSnap.docs[0].data() : {};
 
       const formattedSales = salesSnap.docs.map(doc => {
         const data = doc.data();
@@ -306,18 +309,20 @@ export async function apiCall(action: string, payload: any = {}) {
         };
       });
 
+      const formattedProducts = productsSnap.docs.map(doc => {
+        const data = doc.data();
+        const stockVal = Number(data.currentStock ?? data.stock ?? data.quantity ?? 0);
+        return {
+          id: doc.id,
+          ...data,
+          stock: stockVal,
+          currentStock: stockVal,
+          quantity: stockVal
+        };
+      });
+
       return {
-        products: productsSnap.docs.map(doc => {
-          const data = doc.data();
-          const stockVal = Number(data.currentStock ?? data.stock ?? data.quantity ?? 0);
-          return {
-            id: doc.id,
-            ...data,
-            stock: stockVal,
-            currentStock: stockVal,
-            quantity: stockVal
-          };
-        }),
+        products: formattedProducts,
         sales: formattedSales,
         purchases: purchasesSnap.docs.map(doc => {
           const data = doc.data();
@@ -331,14 +336,15 @@ export async function apiCall(action: string, payload: any = {}) {
         customers: customersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         users: usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
         waybills: waybillsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-        stationAddress: "Main Station Address"
+        settings: settingsData,
+        stationAddress: settingsData.stationAddress || "Main Station Address"
       };
     }
 
     // Fallback for any other custom action
     console.warn(`Unhandled action "${action}" passed to apiCall.`);
-    return { 
-      success: true, 
+    return {  
+      success: true,  
       data: [],
       stationAddress: "Main Station Address",
       products: [],
@@ -347,7 +353,8 @@ export async function apiCall(action: string, payload: any = {}) {
       invoices: [],
       customers: [],
       users: [],
-      waybills: []
+      waybills: [],
+      settings: {}
     };
 
   } catch (error: any) {
