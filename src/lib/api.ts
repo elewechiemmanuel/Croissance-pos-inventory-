@@ -5,6 +5,7 @@ import {
   doc,  
   getDoc,  
   updateDoc,  
+  deleteDoc, 
   getDocs,  
   query,  
   where,  
@@ -209,7 +210,19 @@ export async function apiCall(action: string, payload: any = {}) {
       return { success: true, id: targetId, ...cleanedUpdates };
     }
 
-    // 5. Handle addPurchase action
+    // 5. Handle deleteProduct action
+    if (action === "deleteProduct") {
+      const { id, productId } = payload;
+      const targetId = String(id || productId || "");
+      if (!targetId) {
+        throw new Error("Product ID is required for deleteProduct.");
+      }
+      const productRef = doc(db, "products", targetId);
+      await deleteDoc(productRef);
+      return { success: true, id: targetId };
+    }
+
+    // 6. Handle addPurchase action
     if (action === "addPurchase") {
       const purchaseData = cleanObject({
         ...payloadWithActor,
@@ -220,7 +233,7 @@ export async function apiCall(action: string, payload: any = {}) {
       return { success: true, id: docRef.id, ...purchaseData };
     }
 
-    // 6. Handle generic data fetching directly from Firestore
+    // 7. Handle generic data fetching directly from Firestore
     if (action === "getProducts" || action === "products") {
       const querySnapshot = await getDocs(collection(db, "products"));
       return querySnapshot.docs.map(doc => {

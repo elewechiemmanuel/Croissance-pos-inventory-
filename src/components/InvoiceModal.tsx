@@ -225,10 +225,12 @@ export default function InvoiceModal({ sale, settings, onClose }: InvoiceModalPr
                     <span className="font-semibold">-{formatCurrency(sale.discount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-gray-500">
-                  <span>VAT (0%):</span>
-                  <span>₦0.00</span>
-                </div>
+                {sale.tax !== undefined && sale.tax > 0 && (
+                  <div className="flex justify-between text-gray-600">
+                    <span>Tax:</span>
+                    <span className="font-semibold">+{formatCurrency(sale.tax)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between pt-2 border-t-2 border-blue-900 font-bold text-sm text-blue-950">
                   <span>GRAND TOTAL:</span>
                   <span>{formatCurrency(sale.totalAmount)}</span>

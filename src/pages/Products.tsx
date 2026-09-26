@@ -66,25 +66,33 @@ export default function Products() {
       buyingPrice: product.buyingPrice?.toString() || "",
       sellingPrice: product.sellingPrice?.toString() || "",
       wholesalePrice: product.wholesalePrice?.toString() || "",
-      openingStock: product.openingStock?.toString() || "",
+      openingStock: (product.openingStock ?? product.currentStock)?.toString() || "",
       minStock: product.minStock?.toString() || "",
       status: product.status || "Active"
     });
     setIsModalOpen(true);
   };
 
-  const handleDeleteProduct = async (productId: string, productName: string) => {
+  const handleDeleteProduct = async (product: any) => {
     if (!isAdmin) {
       alert("Access Denied: Only administrators can delete products.");
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to delete "${productName}"?`)) {
+    const productId = product.id || product._id;
+    if (!productId) {
+      alert("Error: Product identifier missing.");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete "${product.name}"?`)) {
       return;
     }
 
     try {
       await apiCall("deleteProduct", { id: productId });
+      // Force reload to update state immediately from Firestore
+      window.location.reload();
     } catch (error) {
       console.error("Failed to delete product:", error);
       alert(`Error deleting product: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -103,8 +111,10 @@ export default function Products() {
     try {
       const finalCategory = showNewCategoryInput ? newCategoryName : formData.category;
       const initialStock = Number(formData.openingStock) || 0;
+      const productId = editingProduct?.id || editingProduct?._id;
 
       const payload = {
+        ...(productId ? { id: productId } : {}),
         name: formData.name,
         sku: formData.sku || `SKU-${Date.now().toString().slice(-4)}`,
         category: finalCategory || "General",
@@ -120,15 +130,18 @@ export default function Products() {
       };
 
       if (editingProduct) {
-        await apiCall("updateProduct", { ...payload, id: editingProduct.id });
+        if (!productId) throw new Error("Editing product ID is missing.");
+        await apiCall("updateProduct", payload);
       } else {
         await apiCall("addProduct", payload);
       }
 
       setIsModalOpen(false);
       resetForm();
+      // Force reload to sync UI state with Firestore changes instantly
+      window.location.reload();
     } catch (error) {
-      console.error("Failed to save product to Firebase:", error);
+      console.error("Failed to save product:", error);
       alert(`Error saving product: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsLoading(false);
@@ -183,7 +196,7 @@ export default function Products() {
                 </tr>
               ) : products && products.length > 0 ? (
                 products.map((product: any) => (
-                  <tr key={product.id} className="hover:bg-blue-50/20 transition-colors">
+                  <tr key={product.id || product._id} className="hover:bg-blue-50/20 transition-colors">
                     <td className="px-5 py-3.5 font-bold text-gray-900">{product.name}</td>
                     <td className="px-4 py-3.5">
                       <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full text-xs font-bold">
@@ -219,7 +232,7 @@ export default function Products() {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteProduct(product.id, product.name)}
+                            onClick={() => handleDeleteProduct(product)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title="Delete product"
                           >

@@ -1,11 +1,12 @@
 import { Product } from "../types";
 
 export interface ParsedCsvProduct {
+  rowNumber: number;
   id?: string;
   name: string;
   category: string;
   type: string;
-  salesType: "Retail" | "Wholesale";
+  salesType: string;
   unit: string;
   buyingPrice: number;
   sellingPrice: number;
@@ -13,94 +14,138 @@ export interface ParsedCsvProduct {
   currentStock: number;
   openingStock: number;
   minStock: number;
-  status: "Active" | "Inactive";
-  // Diagnostic fields for UI preview
-  rowNumber: number;
-  isExisting?: boolean;
-  matchedProductId?: string;
+  status: string;
+  isExisting: boolean;
+  errors: string[];
+  warnings: string[];
   diff?: {
     stockChange?: { old: number; new: number };
-    priceChange?: { old: number; new: number };
   };
-  warnings: string[];
-  errors: string[];
 }
 
 /**
- * Splits CSV lines while respecting quoted fields that contain commas or quotes.
+ * Your existing export function
  */
-export function parseCsvRows(text: string): string[][] {
-  const rows: string[][] = [];
-  let currentRow: string[] = [];
-  let currentField = "";
-  let insideQuotes = false;
-
-  const cleanText = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-
-  for (let i = 0; i < cleanText.length; i++) {
-    const char = cleanText[i];
-    const nextChar = cleanText[i + 1];
-
-    if (char === '"') {
-      if (insideQuotes && nextChar === '"') {
-        // Escaped double quote
-        currentField += '"';
-        i++;
-      } else {
-        // Toggle quote state
-        insideQuotes = !insideQuotes;
-      }
-    } else if (char === ',' && !insideQuotes) {
-      currentRow.push(currentField.trim());
-      currentField = "";
-    } else if (char === '\n' && !insideQuotes) {
-      currentRow.push(currentField.trim());
-      if (currentRow.some(field => field.length > 0)) {
-        rows.push(currentRow);
-      }
-      currentRow = [];
-      currentField = "";
-    } else {
-      currentField += char;
-    }
+export function exportToCSV(filename: string, rows: object[]) {
+  if (!rows || !rows.length) {
+    alert("No data available to export.");
+    return;
   }
 
-  // Push remainder field/row if any
-  if (currentField.length > 0 || currentRow.length > 0) {
-    currentRow.push(currentField.trim());
-    if (currentRow.some(field => field.length > 0)) {
-      rows.push(currentRow);
-    }
+  const separator = ",";
+  const keys = Object.keys(rows[0]);
+  
+  const csvContent = [
+    keys.join(separator),
+    ...rows.map(row => {
+      return keys.map(k => {
+        let cell = (row as Record<string, any>)[k];
+        if (cell === null || cell === undefined) {
+          cell = "";
+        } else {
+          cell = cell.toString().replace(/"/g, '""');
+        }
+        if (cell.search(/("|,|\n)/g) >= 0) {
+          cell = `"${cell}"`;
+        }
+        return cell;
+      }).join(separator);
+    })
+  ].join("\n");
+
+  downloadCsvFile(csvContent, filename);
+}
+
+/**
+ * Downloads a raw string content as a CSV file download
+ */
+export function downloadCsvFile(csvContent: string, filename: string) {
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
-
-  return rows;
 }
 
 /**
- * Normalizes header string to canonical key
+ * Generates a template CSV string for inventory import
  */
-function normalizeHeader(raw: string): string {
-  const clean = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (clean.includes("productid") || clean === "id") return "id";
-  if (clean.includes("productname") || clean === "product" || clean === "item" || clean === "itemname" || clean === "name" || clean === "description") return "name";
-  if (clean.includes("category") || clean === "cat" || clean === "group" || clean === "department") return "category";
-  if (clean === "type" || clean.includes("fueltype") || clean.includes("itemtype")) return "type";
-  if (clean.includes("salestype") || clean.includes("salesmode") || clean === "mode" || clean.includes("channel")) return "salesType";
-  if (clean === "unit" || clean.includes("unitofmeasure") || clean === "uom" || clean === "measure") return "unit";
-  if (clean.includes("buyingprice") || clean.includes("costprice") || clean === "cost" || clean.includes("purchaseprice") || clean === "buyprice") return "buyingPrice";
-  if (clean.includes("sellingprice") || clean.includes("retailprice") || clean === "price" || clean === "retail" || clean.includes("saleprice")) return "sellingPrice";
-  if (clean.includes("wholesaleprice") || clean === "wholesale" || clean.includes("bulkprice") || clean === "trade") return "wholesalePrice";
-  if (clean.includes("currentstock") || clean === "stock" || clean === "quantity" || clean === "qty" || clean.includes("balance") || clean.includes("inventory")) return "currentStock";
-  if (clean.includes("openingstock") || clean === "opening") return "openingStock";
-  if (clean.includes("minstock") || clean.includes("reorder") || clean.includes("alertlevel") || clean.includes("threshold") || clean === "alert") return "minStock";
-  if (clean === "status" || clean.includes("active") || clean === "state") return "status";
-  return clean;
+export function generateSampleInventoryCsv(): string {
+  const headers = [
+    "name",
+    "category",
+    "type",
+    "salesType",
+    "unit",
+    "buyingPrice",
+    "sellingPrice",
+    "wholesalePrice",
+    "currentStock",
+    "openingStock",
+    "minStock",
+    "status"
+  ];
+
+  const sampleRows = [
+    "Premium Motor Spirit (PMS),Fuel,Liquid,Retail,Litre,800,850,830,45000,50000,5000,Active",
+    "Automotive Gas Oil (AGO),Fuel,Liquid,Retail,Litre,1150,1250,1200,20000,25000,2000,Active",
+    "Dual Purpose Kerosene (DPK),Fuel,Liquid,Retail,Litre,950,1020,990,10000,12000,1500,Active",
+    "Cooking Gas (LPG 12.5kg),Gas,Cylinder,Retail,Unit,14000,16000,15500,150,200,20,Active"
+  ];
+
+  return [headers.join(","), ...sampleRows].join("\n");
 }
 
 /**
- * Parses inventory CSV string into structured preview products
+ * Exports all current products into a formatted CSV string
  */
-export function parseInventoryCsv(csvText: string, existingProducts: Product[] = []): {
+export function exportInventoryToCsv(products: Product[]): string {
+  const headers = [
+    "id",
+    "name",
+    "category",
+    "type",
+    "salesType",
+    "unit",
+    "buyingPrice",
+    "sellingPrice",
+    "wholesalePrice",
+    "currentStock",
+    "openingStock",
+    "minStock",
+    "status"
+  ];
+
+  const rows = products.map(p => [
+    p.id || "",
+    `"${(p.name || "").replace(/"/g, '""')}"`,
+    `"${(p.category || "").replace(/"/g, '""')}"`,
+    p.type || "Liquid",
+    p.salesType || "Retail",
+    p.unit || "Litre",
+    p.buyingPrice || 0,
+    p.sellingPrice || 0,
+    p.wholesalePrice || 0,
+    p.currentStock || 0,
+    p.openingStock || 0,
+    p.minStock || 0,
+    p.status || "Active"
+  ]);
+
+  return [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+}
+
+/**
+ * Parses raw CSV text and maps it against existing products to detect new vs update rows
+ */
+export function parseInventoryCsv(csvText: string, existingProducts: Product[]): {
   items: ParsedCsvProduct[];
   totalRows: number;
   validCount: number;
@@ -108,16 +153,49 @@ export function parseInventoryCsv(csvText: string, existingProducts: Product[] =
   newCount: number;
   updateCount: number;
 } {
-  const rawRows = parseCsvRows(csvText);
-  if (rawRows.length === 0) {
-    return { items: [], totalRows: 0, validCount: 0, errorCount: 0, newCount: 0, updateCount: 0 };
+  const lines = csvText.split(/\r\n|\n/).filter(line => line.trim().length > 0);
+  if (lines.length === 0) {
+    throw new Error("The CSV file is empty.");
   }
 
-  const headerRow = rawRows[0];
-  const headerMap: Record<number, string> = {};
-  headerRow.forEach((h, idx) => {
-    headerMap[idx] = normalizeHeader(h);
-  });
+  // Simple CSV parser handling quotes
+  const parseLine = (text: string): string[] => {
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result.map(val => val.replace(/^"|"$/g, "").replace(/""/g, '"'));
+  };
+
+  const headers = parseLine(lines[0]).map(h => h.toLowerCase());
+  
+  const nameIdx = headers.findIndex(h => h.includes("name") || h.includes("product"));
+  const categoryIdx = headers.findIndex(h => h.includes("category"));
+  const typeIdx = headers.findIndex(h => h.includes("type"));
+  const salesTypeIdx = headers.findIndex(h => h.includes("salestype") || h.includes("sales"));
+  const unitIdx = headers.findIndex(h => h.includes("unit"));
+  const buyPriceIdx = headers.findIndex(h => h.includes("buying") || h.includes("cost") || h.includes("buy"));
+  const sellPriceIdx = headers.findIndex(h => h.includes("selling") || h.includes("price") || h.includes("retail"));
+  const wholesaleIdx = headers.findIndex(h => h.includes("wholesale"));
+  const stockIdx = headers.findIndex(h => h.includes("currentstock") || h.includes("stock") || h.includes("quantity"));
+  const openingIdx = headers.findIndex(h => h.includes("opening"));
+  const minStockIdx = headers.findIndex(h => h.includes("min"));
+  const statusIdx = headers.findIndex(h => h.includes("status"));
+
+  if (nameIdx === -1) {
+    throw new Error("CSV must contain a product 'name' column.");
+  }
 
   const items: ParsedCsvProduct[] = [];
   let validCount = 0;
@@ -125,108 +203,61 @@ export function parseInventoryCsv(csvText: string, existingProducts: Product[] =
   let newCount = 0;
   let updateCount = 0;
 
-  for (let r = 1; r < rawRows.length; r++) {
-    const row = rawRows[r];
-    const rowObj: Record<string, string> = {};
-    row.forEach((val, idx) => {
-      const key = headerMap[idx];
-      if (key) {
-        rowObj[key] = val;
-      }
-    });
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseLine(lines[i]);
+    if (cols.length === 0 || cols.every(c => c === "")) continue;
 
-    const warnings: string[] = [];
+    const name = cols[nameIdx] || "";
+    const category = categoryIdx !== -1 ? cols[categoryIdx] || "General" : "General";
+    const type = typeIdx !== -1 ? cols[typeIdx] || "Liquid" : "Liquid";
+    const salesType = salesTypeIdx !== -1 ? cols[salesTypeIdx] || "Retail" : "Retail";
+    const unit = unitIdx !== -1 ? cols[unitIdx] || "Litre" : "Litre";
+    
+    const buyingPrice = buyPriceIdx !== -1 ? parseFloat(cols[buyPriceIdx]) || 0 : 0;
+    const sellingPrice = sellPriceIdx !== -1 ? parseFloat(cols[sellPriceIdx]) || 0 : 0;
+    const wholesalePrice = wholesaleIdx !== -1 ? parseFloat(cols[wholesaleIdx]) || 0 : sellingPrice;
+    const currentStock = stockIdx !== -1 ? parseFloat(cols[stockIdx]) || 0 : 0;
+    const openingStock = openingIdx !== -1 ? parseFloat(cols[openingIdx]) || 0 : currentStock;
+    const minStock = minStockIdx !== -1 ? parseFloat(cols[minStockIdx]) || 0 : 10;
+    const status = statusIdx !== -1 ? cols[statusIdx] || "Active" : "Active";
+
     const errors: string[] = [];
+    const warnings: string[] = [];
 
-    const rawName = rowObj["name"] || "";
-    if (!rawName.trim()) {
-      errors.push("Missing required Product Name.");
-    }
+    if (!name) errors.push("Missing product name");
+    if (sellingPrice <= 0) warnings.push("Selling price is 0 or negative");
 
-    const name = rawName.trim();
-    const id = rowObj["id"]?.trim();
-
-    // Default category & unit heuristics based on fuel names
-    let category = rowObj["category"]?.trim();
-    if (!category) {
-      if (name.toLowerCase().includes("petrol") || name.toLowerCase().includes("pms")) category = "Petrol";
-      else if (name.toLowerCase().includes("diesel") || name.toLowerCase().includes("ago")) category = "Diesel";
-      else if (name.toLowerCase().includes("lpg") || name.toLowerCase().includes("gas")) category = "LPG";
-      else if (name.toLowerCase().includes("kerosene") || name.toLowerCase().includes("dpk")) category = "Kerosene";
-      else if (name.toLowerCase().includes("oil") || name.toLowerCase().includes("lubricant") || name.toLowerCase().includes("atf")) category = "Lubricants";
-      else category = "General";
-      warnings.push(`Category inferred as "${category}".`);
-    }
-
-    let unit = rowObj["unit"]?.trim();
-    if (!unit) {
-      if (category === "Petrol" || category === "Diesel" || category === "Kerosene") unit = "Litre";
-      else if (category === "LPG") unit = "KG";
-      else unit = "Unit";
-      warnings.push(`Unit inferred as "${unit}".`);
-    }
-
-    let salesType: "Retail" | "Wholesale" = "Retail";
-    const rawSales = (rowObj["salesType"] || "").toLowerCase();
-    if (rawSales.includes("whole") || rawSales.includes("bulk") || name.toLowerCase().includes("wholesale") || name.toLowerCase().includes("tanker")) {
-      salesType = "Wholesale";
-    }
-
-    // Numbers
-    const parseNumber = (val: string | undefined, defaultVal: number): number => {
-      if (!val) return defaultVal;
-      const cleanNum = val.replace(/[^0-9.-]+/g, "");
-      const num = parseFloat(cleanNum);
-      return isNaN(num) ? defaultVal : num;
-    };
-
-    const buyingPrice = Math.max(0, parseNumber(rowObj["buyingPrice"], 0));
-    const sellingPrice = Math.max(0, parseNumber(rowObj["sellingPrice"], 0));
-    let wholesalePrice = Math.max(0, parseNumber(rowObj["wholesalePrice"], 0));
-    if (wholesalePrice === 0 && sellingPrice > 0) {
-      wholesalePrice = salesType === "Wholesale" ? sellingPrice : Math.round(sellingPrice * 0.95);
-    }
-
-    const currentStock = parseNumber(rowObj["currentStock"], 0);
-    const openingStock = parseNumber(rowObj["openingStock"], currentStock);
-    const minStock = Math.max(0, parseNumber(rowObj["minStock"], 10));
-
-    let status: "Active" | "Inactive" = "Active";
-    const rawStatus = (rowObj["status"] || "").toLowerCase();
-    if (rawStatus.includes("inact") || rawStatus.includes("disable") || rawStatus === "no" || rawStatus === "0") {
-      status = "Inactive";
-    }
-
-    // Match with existing products
-    const matched = existingProducts.find(p => 
-      (id && p.id.toLowerCase() === id.toLowerCase()) || 
-      p.name.trim().toLowerCase() === name.toLowerCase()
+    // Check if product exists in existing database
+    const matchedExisting = existingProducts.find(
+      p => p.name.trim().toLowerCase() === name.trim().toLowerCase()
     );
 
-    const isExisting = Boolean(matched);
-    let diff: ParsedCsvProduct["diff"] = undefined;
-
-    if (matched) {
-      diff = {
-        stockChange: { old: matched.currentStock, new: currentStock },
-        priceChange: { old: matched.sellingPrice, new: sellingPrice }
-      };
+    const isExisting = !!matchedExisting;
+    if (isExisting) {
       updateCount++;
     } else {
       newCount++;
     }
 
-    if (errors.length > 0) {
-      errorCount++;
-    } else {
+    if (errors.length === 0) {
       validCount++;
+    } else {
+      errorCount++;
     }
 
+    const diff = isExisting ? {
+      stockChange: {
+        old: matchedExisting.currentStock || 0,
+        new: currentStock
+      }
+    } : undefined;
+
     items.push({
-      id: matched?.id || id,
+      rowNumber: i + 1,
+      id: matchedExisting?.id,
       name,
       category,
-      type: category,
+      type,
       salesType,
       unit,
       buyingPrice,
@@ -236,126 +267,19 @@ export function parseInventoryCsv(csvText: string, existingProducts: Product[] =
       openingStock,
       minStock,
       status,
-      rowNumber: r + 1,
       isExisting,
-      matchedProductId: matched?.id,
-      diff,
+      errors,
       warnings,
-      errors
+      diff
     });
   }
 
   return {
     items,
-    totalRows: rawRows.length - 1,
+    totalRows: items.length,
     validCount,
     errorCount,
     newCount,
     updateCount
   };
-}
-
-/**
- * Generates sample inventory CSV template
- */
-export function generateSampleInventoryCsv(): string {
-  const headers = [
-    "Product Name",
-    "Category",
-    "Sales Type",
-    "Unit",
-    "Buying Price",
-    "Selling Price",
-    "Wholesale Price",
-    "Current Stock",
-    "Min Stock",
-    "Status"
-  ];
-
-  const sampleRows = [
-    ["Petrol (PMS) - Dispenser Pump", "Petrol", "Retail", "Litre", "700", "760", "740", "15000", "1000", "Active"],
-    ["Petrol (PMS) - Bulk Tanker (33,000L)", "Petrol", "Wholesale", "Litre", "680", "720", "710", "33000", "5000", "Active"],
-    ["Diesel (AGO) - Pump Dispenser", "Diesel", "Retail", "Litre", "1100", "1350", "1300", "8500", "500", "Active"],
-    ["Diesel (AGO) - Bulk Tanker", "Diesel", "Wholesale", "Litre", "1050", "1250", "1180", "45000", "2000", "Active"],
-    ["Kerosene (DPK) - Pump / Retail", "Kerosene", "Retail", "Litre", "1150", "1400", "1350", "3200", "300", "Active"],
-    ["LPG 50kg Refill / Cylinder", "LPG", "Wholesale", "KG", "42000", "52000", "49000", "25", "5", "Active"],
-    ["LPG 12.5kg Refill / Cylinder", "LPG", "Retail", "KG", "10500", "13000", "12200", "60", "15", "Active"],
-    ["LPG 6kg Refill / Cylinder", "LPG", "Retail", "KG", "5100", "6500", "6000", "40", "20", "Active"],
-    ["Heavy Duty Engine Oil 15W-40 (4L)", "Lubricants", "Retail", "Unit", "14000", "18500", "17000", "35", "10", "Active"],
-    ["Multi-Grade Engine Oil 20W-50 (4L)", "Lubricants", "Retail", "Unit", "12500", "16000", "15000", "42", "12", "Active"],
-    ["Low Pressure Gas Regulator with Gauge", "Accessories", "Retail", "Unit", "4500", "6500", "5800", "50", "15", "Active"],
-    ["Reinforced Gas Hose (2 Metres) + Clamps", "Accessories", "Retail", "Unit", "2200", "3500", "3000", "80", "25", "Active"]
-  ];
-
-  const escapeField = (val: string) => `"${val.replace(/"/g, '""')}"`;
-
-  const csvLines = [
-    headers.map(escapeField).join(","),
-    ...sampleRows.map(row => row.map(escapeField).join(","))
-  ];
-
-  return csvLines.join("\r\n");
-}
-
-/**
- * Exports current products array to CSV
- */
-export function exportInventoryToCsv(products: Product[]): string {
-  const headers = [
-    "Product ID",
-    "Product Name",
-    "Category",
-    "Type",
-    "Sales Type",
-    "Unit",
-    "Buying Price",
-    "Selling Price",
-    "Wholesale Price",
-    "Opening Stock",
-    "Current Stock",
-    "Min Stock",
-    "Status"
-  ];
-
-  const escapeField = (val: any) => {
-    if (val === null || val === undefined) return '""';
-    const str = String(val);
-    return `"${str.replace(/"/g, '""')}"`;
-  };
-
-  const lines = [
-    headers.map(escapeField).join(","),
-    ...products.map(p => [
-      p.id,
-      p.name,
-      p.category,
-      p.type,
-      p.salesType,
-      p.unit,
-      p.buyingPrice,
-      p.sellingPrice,
-      p.wholesalePrice,
-      p.openingStock,
-      p.currentStock,
-      p.minStock,
-      p.status
-    ].map(escapeField).join(","))
-  ];
-
-  return lines.join("\r\n");
-}
-
-/**
- * Triggers standard browser file download for CSV content
- */
-export function downloadCsvFile(content: string, filename: string) {
-  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  link.setAttribute("download", filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }

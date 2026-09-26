@@ -76,7 +76,8 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
   const categories = useMemo(() => {
     const set = new Set<string>();
     products.forEach(p => {
-      if (p.category) set.add(p.category);
+      const cat = (p as any).category;
+      if (cat) set.add(cat);
     });
     return ["ALL", ...Array.from(set)];
   }, [products]);
@@ -84,8 +85,9 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
   // Calculate items below user-defined threshold
   const itemsRequiringReplenishment = useMemo(() => {
     return products.map(product => {
-      const minStock = Number(product.minStock) || 0;
-      const currentStock = Number(product.currentStock) || 0;
+      const p = product as any;
+      const minStock = Number(p.minStock) || 0;
+      const currentStock = Number(p.currentStock) || 0;
       
       // Calculate effective alert threshold for this product
       let effectiveThreshold = minStock;
@@ -108,7 +110,7 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
       // Recommended reorder quantity: replenish up to at least 2.5x minStock or a healthy buffer
       const targetStock = Math.max(minStock * 2.5, minStock + 50);
       const recommendedReorder = Math.max(0, Math.ceil(targetStock - currentStock));
-      const estReorderCost = recommendedReorder * (product.buyingPrice || 0);
+      const estReorderCost = recommendedReorder * (Number(p.buyingPrice) || 0);
 
       // Stock health percent against threshold
       const healthPct = effectiveThreshold > 0 
@@ -128,7 +130,7 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
       };
     })
     .filter(item => item.isBelow)
-    .filter(item => selectedCategory === "ALL" || item.product.category === selectedCategory)
+    .filter(item => selectedCategory === "ALL" || (item.product as any).category === selectedCategory)
     .sort((a, b) => {
       // Sort by urgency: out of stock first, then lowest healthPct
       if (a.currentStock === 0 && b.currentStock > 0) return -1;
@@ -155,21 +157,22 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
     if (!restockProduct || restockQty <= 0) return;
     setIsRestocking(true);
     try {
-      const newStock = Number(restockProduct.currentStock) + Number(restockQty);
+      const p = restockProduct as any;
+      const newStock = Number(p.currentStock) + Number(restockQty);
       await apiCall("updateProduct", {
-        id: restockProduct.id,
+        id: p.id,
         currentStock: newStock,
-        name: restockProduct.name,
-        category: restockProduct.category,
-        buyingPrice: restockProduct.buyingPrice,
-        sellingPrice: restockProduct.sellingPrice,
-        wholesalePrice: restockProduct.wholesalePrice,
-        minStock: restockProduct.minStock,
-        unit: restockProduct.unit,
+        name: p.name,
+        category: p.category,
+        buyingPrice: p.buyingPrice,
+        sellingPrice: p.sellingPrice,
+        wholesalePrice: p.wholesalePrice,
+        minStock: p.minStock,
+        unit: p.unit,
         status: "Active"
       });
 
-      setRestockSuccessMsg(`Successfully added ${restockQty} ${restockProduct.unit || 'units'} to ${restockProduct.name}!`);
+      setRestockSuccessMsg(`Successfully added ${restockQty} ${p.unit || 'units'} to ${p.name}!`);
       if (onRefreshData) {
         await onRefreshData();
       }
@@ -196,11 +199,12 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
     text += `--------------------------------------------------\n`;
     
     itemsRequiringReplenishment.forEach((item, idx) => {
-      text += `${idx + 1}. ${item.product.name} [${item.product.category}]\n`;
-      text += `   Current Stock: ${item.currentStock} ${item.product.unit || 'units'} | Min Required: ${item.minStock}\n`;
-      text += `   Recommended Order: ${item.recommendedReorder} ${item.product.unit || 'units'}\n`;
-      text += `   Est. Cost: ${formatCurrency(item.estReorderCost)}\n`;
-      text += `   Status: ${item.urgency === "out_of_stock" ? "DEPLETED (0 Stock)" : item.urgency === "critical" ? "CRITICAL (Below Min)" : "LOW (Near Buffer)"}\n\n`;
+      const p = item.product as any;
+      text += `${idx + 1}. ${p.name} [${p.category}]\n`;
+      text += `    Current Stock: ${item.currentStock} ${p.unit || 'units'} | Min Required: ${item.minStock}\n`;
+      text += `    Recommended Order: ${item.recommendedReorder} ${p.unit || 'units'}\n`;
+      text += `    Est. Cost: ${formatCurrency(item.estReorderCost)}\n`;
+      text += `    Status: ${item.urgency === "out_of_stock" ? "DEPLETED (0 Stock)" : item.urgency === "critical" ? "CRITICAL (Below Min)" : "LOW (Near Buffer)"}\n\n`;
     });
 
     navigator.clipboard.writeText(text);
@@ -225,18 +229,21 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
       "Stock Urgency"
     ];
 
-    const rows = itemsRequiringReplenishment.map(item => [
-      `"${item.product.name.replace(/"/g, '""')}"`,
-      `"${item.product.category}"`,
-      item.currentStock,
-      `"${item.product.unit || 'Unit'}"`,
-      item.minStock,
-      item.effectiveThreshold,
-      item.recommendedReorder,
-      item.product.buyingPrice || 0,
-      item.estReorderCost,
-      item.urgency === "out_of_stock" ? "OUT OF STOCK" : item.urgency === "critical" ? "CRITICAL" : "LOW BUFFER"
-    ]);
+    const rows = itemsRequiringReplenishment.map(item => {
+      const p = item.product as any;
+      return [
+        `"${String(p.name || '').replace(/"/g, '""')}"`,
+        `"${String(p.category || '')}"`,
+        item.currentStock,
+        `"${String(p.unit || 'Unit')}"`,
+        item.minStock,
+        item.effectiveThreshold,
+        item.recommendedReorder,
+        Number(p.buyingPrice) || 0,
+        item.estReorderCost,
+        item.urgency === "out_of_stock" ? "OUT OF STOCK" : item.urgency === "critical" ? "CRITICAL" : "LOW BUFFER"
+      ];
+    });
 
     const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -443,84 +450,87 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
             </p>
           </div>
         ) : (
-          itemsRequiringReplenishment.map((item) => (
-            <div 
-              key={item.product.id}
-              className="py-3 px-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/80 rounded-xl transition-colors"
-            >
-              <div className="space-y-1.5 flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-sm text-gray-900 truncate">
-                    {item.product.name}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
-                    {item.product.category}
-                  </span>
-                  {item.urgency === "out_of_stock" ? (
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
-                      DEPLETED
+          itemsRequiringReplenishment.map((item) => {
+            const p = item.product as any;
+            return (
+              <div 
+                key={p.id}
+                className="py-3 px-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-50/80 rounded-xl transition-colors"
+              >
+                <div className="space-y-1.5 flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-gray-900 truncate">
+                      {p.name}
                     </span>
-                  ) : item.urgency === "critical" ? (
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-100">
-                      BELOW MIN
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">
+                      {p.category}
                     </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                      BUFFER ALERT
-                    </span>
-                  )}
-                </div>
-
-                {/* Stock bar & status */}
-                <div className="flex items-center gap-3 text-xs">
-                  <div className="w-28 bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${
-                        item.urgency === "out_of_stock" 
-                          ? "bg-red-500 w-0" 
-                          : item.urgency === "critical" 
-                          ? "bg-red-500" 
-                          : "bg-amber-500"
-                      }`}
-                      style={{ width: `${Math.min(100, Math.max(5, item.healthPct))}%` }}
-                    />
+                    {item.urgency === "out_of_stock" ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+                        DEPLETED
+                      </span>
+                    ) : item.urgency === "critical" ? (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-red-50 text-red-600 border border-red-100">
+                        BELOW MIN
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                        BUFFER ALERT
+                      </span>
+                    )}
                   </div>
-                  <span className="text-gray-500 text-[11px]">
-                    Current: <strong className={item.currentStock <= item.minStock ? "text-red-600" : "text-amber-700"}>
-                      {item.currentStock} {item.product.unit || 'units'}
-                    </strong>
-                    {" "}&bull;{" "}
-                    Min: {item.minStock}
-                    {" "}&bull;{" "}
-                    Threshold: {item.effectiveThreshold}
-                  </span>
+
+                  {/* Stock bar & status */}
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="w-28 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          item.urgency === "out_of_stock" 
+                            ? "bg-red-500 w-0" 
+                            : item.urgency === "critical" 
+                            ? "bg-red-500" 
+                            : "bg-amber-500"
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(5, item.healthPct))}%` }}
+                      />
+                    </div>
+                    <span className="text-gray-500 text-[11px]">
+                      Current: <strong className={item.currentStock <= item.minStock ? "text-red-600" : "text-amber-700"}>
+                        {item.currentStock} {p.unit || 'units'}
+                      </strong>
+                      {" "}&bull;{" "}
+                      Min: {item.minStock}
+                      {" "}&bull;{" "}
+                      Threshold: {item.effectiveThreshold}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Replenish CTA and recommendations */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-500 uppercase font-semibold">Recommended Order</p>
+                    <p className="text-xs font-bold text-blue-900">
+                      +{item.recommendedReorder} {p.unit || 'units'}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      ~{formatCurrency(item.estReorderCost)}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenRestock(item.product, item.recommendedReorder)}
+                    className="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    title="Quickly log replenished stock delivery"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Restock</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Replenish CTA and recommendations */}
-              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-500 uppercase font-semibold">Recommended Order</p>
-                  <p className="text-xs font-bold text-blue-900">
-                    +{item.recommendedReorder} {item.product.unit || 'units'}
-                  </p>
-                  <p className="text-[10px] text-gray-400">
-                    ~{formatCurrency(item.estReorderCost)}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleOpenRestock(item.product, item.recommendedReorder)}
-                  className="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-                  title="Quickly log replenished stock delivery"
-                >
-                  <Plus className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Restock</span>
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -528,98 +538,105 @@ export default function LowStockReplenishmentWidget({ products, onRefreshData }:
       {restockProduct && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-blue-50 text-blue-900 rounded-lg">
-                  <TrendingDown className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900">Quick Stock Replenishment</h3>
-                  <p className="text-xs text-gray-500 truncate max-w-[200px]">{restockProduct.name}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRestockProduct(null)}
-                className="text-gray-400 hover:text-gray-600 p-1"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+            {(() => {
+              const rp = restockProduct as any;
+              return (
+                <>
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-blue-50 text-blue-900 rounded-lg">
+                        <TrendingDown className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900">Quick Stock Replenishment</h3>
+                        <p className="text-xs text-gray-500 truncate max-w-[200px]">{rp.name}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRestockProduct(null)}
+                      className="text-gray-400 hover:text-gray-600 p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-            {restockSuccessMsg ? (
-              <div className="py-4 text-center space-y-2">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                  <Check className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-bold text-emerald-800">{restockSuccessMsg}</p>
-              </div>
-            ) : (
-              <>
-                <div className="bg-gray-50 p-3 rounded-xl space-y-1 text-xs text-gray-600">
-                  <div className="flex justify-between">
-                    <span>Current In Stock:</span>
-                    <strong className="text-red-600 font-bold">{restockProduct.currentStock} {restockProduct.unit || 'units'}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Minimum Stock Level:</span>
-                    <span className="font-semibold">{restockProduct.minStock} {restockProduct.unit || 'units'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Supplier Buying Price:</span>
-                    <span className="font-semibold">{formatCurrency(restockProduct.buyingPrice || 0)}</span>
-                  </div>
-                </div>
+                  {restockSuccessMsg ? (
+                    <div className="py-4 text-center space-y-2">
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                        <Check className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-bold text-emerald-800">{restockSuccessMsg}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-gray-50 p-3 rounded-xl space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between">
+                          <span>Current In Stock:</span>
+                          <strong className="text-red-600 font-bold">{rp.currentStock} {rp.unit || 'units'}</strong>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Minimum Stock Level:</span>
+                          <span className="font-semibold">{rp.minStock} {rp.unit || 'units'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Supplier Buying Price:</span>
+                          <span className="font-semibold">{formatCurrency(rp.buyingPrice || 0)}</span>
+                        </div>
+                      </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-700 block">
-                    Quantity Received / Added ({restockProduct.unit || 'units'}):
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={restockQty}
-                    onChange={(e) => setRestockQty(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900"
-                    autoFocus
-                  />
-                  <div className="flex justify-between items-center text-[11px] text-gray-500 pt-1">
-                    <span>New Total Stock:</span>
-                    <strong className="text-emerald-700 font-bold">
-                      {Number(restockProduct.currentStock) + Number(restockQty || 0)} {restockProduct.unit || 'units'}
-                    </strong>
-                  </div>
-                </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-gray-700 block">
+                          Quantity Received / Added ({rp.unit || 'units'}):
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={restockQty}
+                          onChange={(e) => setRestockQty(Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-900"
+                          autoFocus
+                        />
+                        <div className="flex justify-between items-center text-[11px] text-gray-500 pt-1">
+                          <span>New Total Stock:</span>
+                          <strong className="text-emerald-700 font-bold">
+                            {Number(rp.currentStock) + Number(restockQty || 0)} {rp.unit || 'units'}
+                          </strong>
+                        </div>
+                      </div>
 
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setRestockProduct(null)}
-                    className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isRestocking || restockQty <= 0}
-                    onClick={handleConfirmRestock}
-                    className="px-5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
-                  >
-                    {isRestocking ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Updating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Confirm Replenishment</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
+                      <div className="flex justify-end gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setRestockProduct(null)}
+                          className="px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-100 rounded-xl"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isRestocking || restockQty <= 0}
+                          onClick={handleConfirmRestock}
+                          className="px-5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+                        >
+                          {isRestocking ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Updating...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Confirm Replenishment</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

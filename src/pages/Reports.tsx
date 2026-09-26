@@ -36,33 +36,26 @@ export default function Reports() {
     return () => unsubscribe();
   }, [isAdmin]);
 
-  // Robust helper to completely resolve the "Just now" bug and malformed strings
+  // Robust helper to resolve missing dates or malformed strings safely
   const formatSaleDate = (sale: any) => {
-    const rawDate = sale.createdAt || sale.date || sale.timestamp;
+    const rawDate = sale.createdAt || sale.date || sale.timestamp || sale.updatedAt;
     
-    // If the database stored a literal string like "Just now" or invalid text, 
-    // handle it safely instead of letting new Date() break or display incorrectly.
-    if (!rawDate) return "N/A";
+    if (!rawDate) return "Recent Sale";
     if (typeof rawDate === "string" && (rawDate.toLowerCase() === "just now" || isNaN(Date.parse(rawDate)))) {
-      // Fallbacks if a transaction has a legacy placeholder string
-      return sale.updatedAt ? new Date(sale.updatedAt).toLocaleString() : "Recent";
+      return "Recent";
     }
 
     let date: Date;
 
-    // If it's a Firestore Timestamp object with .toDate()
     if (typeof rawDate.toDate === "function") {
       date = rawDate.toDate();
-    } 
-    // If it's an object with seconds (serialized Firestore timestamp)
-    else if (typeof rawDate === "object" && typeof rawDate.seconds === "number") {
+    } else if (typeof rawDate === "object" && typeof rawDate.seconds === "number") {
       date = new Date(rawDate.seconds * 1000);
-    } 
-    else {
+    } else {
       date = new Date(rawDate);
     }
 
-    if (isNaN(date.getTime())) return "N/A";
+    if (isNaN(date.getTime())) return "Recent Sale";
 
     return new Intl.DateTimeFormat("en-GB", {
       day: "2-digit",
