@@ -21,7 +21,7 @@ import WaybillModal from "../components/WaybillModal";
 
 type PriceTier = "retail" | "wholesale";
 type DiscountType = "fixed" | "percentage";
-type PaymentMethod = "Cash" | "Transfer" | "Card" | "Split";
+type PaymentMethod = "Cash" | "Transfer" | "POS Terminal" | "Credit" | "Split";
 
 interface CartItem {
   productId: string;
@@ -65,7 +65,8 @@ const POS: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("Cash");
   const [cashAmountPaid, setCashAmountPaid] = useState<number>(0);
   const [transferAmountPaid, setTransferAmountPaid] = useState<number>(0);
-  const [cardAmountPaid, setCardAmountPaid] = useState<number>(0);
+  const [posTerminalAmountPaid, setPosTerminalAmountPaid] = useState<number>(0);
+  const [creditAmountPaid, setCreditAmountPaid] = useState<number>(0);
 
   // ---------------------------------------------------------
   // Other Modals
@@ -90,7 +91,7 @@ const POS: React.FC = () => {
   };
 
   const getAvailableStock = (product: Product): number => {
-    const stock = Number(product.currentStock);
+    const stock = Number(product.currentStock ?? product.stock);
     if (!Number.isFinite(stock)) {
       return 0;
     }
@@ -137,8 +138,9 @@ const POS: React.FC = () => {
 
       if (existingIndex >= 0) {
         const existingItem = previousCart[existingIndex];
+        const newQuantity = Number((existingItem.quantity + 1).toFixed(3));
 
-        if (existingItem.quantity >= availableStock) {
+        if (newQuantity > availableStock) {
           window.alert(`Only ${availableStock} unit(s) of ${product.name} are available.`);
           return previousCart;
         }
@@ -147,11 +149,10 @@ const POS: React.FC = () => {
           if (index !== existingIndex) {
             return item;
           }
-          const newQuantity = item.quantity + 1;
           return {
             ...item,
             quantity: newQuantity,
-            total: newQuantity * item.unitPrice,
+            total: Number((newQuantity * item.unitPrice).toFixed(2)),
           };
         });
       }
@@ -172,7 +173,7 @@ const POS: React.FC = () => {
   };
 
   // ---------------------------------------------------------
-  // Update Cart Quantity
+  // Update Cart Quantity (Supports Decimals e.g. 1.5)
   // ---------------------------------------------------------
   const updateQuantity = (productId: string, selectedTier: PriceTier, newQuantity: number) => {
     const product = products.find((item) => item.id === productId);
@@ -191,7 +192,7 @@ const POS: React.FC = () => {
       return;
     }
 
-    const quantity = Math.floor(newQuantity);
+    const quantity = Number(newQuantity.toFixed(3));
 
     if (quantity > availableStock) {
       window.alert(`Only ${availableStock} unit(s) of ${product.name} are available.`);
@@ -204,7 +205,7 @@ const POS: React.FC = () => {
           return {
             ...item,
             quantity,
-            total: quantity * item.unitPrice,
+            total: Number((quantity * item.unitPrice).toFixed(2)),
           };
         }
         return item;
@@ -253,22 +254,25 @@ const POS: React.FC = () => {
         return Math.max(0, safeNumber(cashAmountPaid));
       case "Transfer":
         return Math.max(0, safeNumber(transferAmountPaid));
-      case "Card":
-        return Math.max(0, safeNumber(cardAmountPaid));
+      case "POS Terminal":
+        return Math.max(0, safeNumber(posTerminalAmountPaid));
+      case "Credit":
+        return grandTotal; // Credit is logged as fully covered on account
       case "Split":
         return (
           Math.max(0, safeNumber(cashAmountPaid)) +
           Math.max(0, safeNumber(transferAmountPaid)) +
-          Math.max(0, safeNumber(cardAmountPaid))
+          Math.max(0, safeNumber(posTerminalAmountPaid)) +
+          Math.max(0, safeNumber(creditAmountPaid))
         );
       default:
         return 0;
     }
-  }, [paymentMethod, cashAmountPaid, transferAmountPaid, cardAmountPaid]);
+  }, [paymentMethod, cashAmountPaid, transferAmountPaid, posTerminalAmountPaid, creditAmountPaid, grandTotal]);
 
-  const changeDue = Math.max(0, totalPaid - grandTotal);
+  const changeDue = paymentMethod === "Cash" || paymentMethod === "Split" ? Math.max(0, totalPaid - grandTotal) : 0;
   const remainingBalance = Math.max(0, grandTotal - totalPaid);
-  const paymentComplete = grandTotal > 0 && totalPaid >= grandTotal;
+  const paymentComplete = grandTotal > 0 && (paymentMethod === "Credit" || totalPaid >= grandTotal);
 
   // ---------------------------------------------------------
   // Open Checkout
@@ -281,7 +285,8 @@ const POS: React.FC = () => {
 
     setCashAmountPaid(grandTotal);
     setTransferAmountPaid(0);
-    setCardAmountPaid(0);
+    setPosTerminalAmountPaid(0);
+    setCreditAmountPaid(0);
     setPaymentMethod("Cash");
     setShowCheckoutModal(true);
   };
@@ -293,16 +298,15 @@ const POS: React.FC = () => {
     setPaymentMethod(method);
     setCashAmountPaid(0);
     setTransferAmountPaid(0);
-    setCardAmountPaid(0);
+    setPosTerminalAmountPaid(0);
+    setCreditAmountPaid(0);
 
     if (method === "Cash") {
       setCashAmountPaid(grandTotal);
-    }
-    if (method === "Transfer") {
+    } else if (method === "Transfer") {
       setTransferAmountPaid(grandTotal);
-    }
-    if (method === "Card") {
-      setCardAmountPaid(grandTotal);
+    } else if (method === "POS Terminal") {
+      setPosTerminalAmountPaid(grandTotal);
     }
   };
 
@@ -350,7 +354,7 @@ const POS: React.FC = () => {
       return;
     }
 
-    if (totalPaid < grandTotal) {
+    if (paymentMethod !== "Credit" && totalPaid < grandTotal) {
       window.alert(
         `Payment is incomplete.\n\nRemaining balance: ${formatCurrency(remainingBalance)}`
       );
@@ -376,7 +380,7 @@ const POS: React.FC = () => {
       tax: calculatedTax,
       totalAmount: grandTotal,
       paymentMethod,
-      paymentStatus: "Paid",
+      paymentStatus: paymentMethod === "Credit" ? "Pending" : "Paid",
     };
 
     try {
@@ -388,7 +392,8 @@ const POS: React.FC = () => {
       setDiscountType("fixed");
       setCashAmountPaid(0);
       setTransferAmountPaid(0);
-      setCardAmountPaid(0);
+      setPosTerminalAmountPaid(0);
+      setCreditAmountPaid(0);
       setShowCheckoutModal(false);
     } catch (error) {
       console.error("Error completing sale:", error);
@@ -502,7 +507,7 @@ const POS: React.FC = () => {
                   <div>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] uppercase tracking-wider font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                        {product.category}
+                        {product.category || "Gas / Fuel"}
                       </span>
                       <span className="text-[10px] text-gray-400 capitalize flex items-center gap-1">
                         <Tag className="w-3 h-3" />
@@ -523,7 +528,7 @@ const POS: React.FC = () => {
                         stock <= 0 ? "text-red-500 font-bold" : "text-gray-500"
                       }`}
                     >
-                      Stock: {stock}
+                      Stock: {stock} {product.unit || ""}
                     </span>
                   </div>
                 </div>
@@ -588,7 +593,7 @@ const POS: React.FC = () => {
                   <div>
                     <p className="text-xs font-semibold text-gray-900">{item.productName}</p>
                     <span className="text-[10px] text-gray-500 uppercase">
-                      ({item.priceTier}) • {formatCurrency(item.unitPrice)} each
+                      ({item.priceTier}) • {formatCurrency(item.unitPrice)} / {item.unit || "unit"}
                     </span>
                   </div>
                   <span className="text-xs font-bold text-blue-950">
@@ -597,21 +602,21 @@ const POS: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between pt-1 border-t border-gray-200/60">
-                  {/* Quantity */}
+                  {/* Quantity (Supports Decimals e.g. 1.5) */}
                   <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-md px-1 py-0.5">
                     <button
                       type="button"
                       onClick={() =>
-                        updateQuantity(item.productId, item.priceTier, item.quantity - 1)
+                        updateQuantity(item.productId, item.priceTier, Number((item.quantity - 0.5).toFixed(3)))
                       }
                       className="text-gray-500 hover:text-black p-0.5 cursor-pointer"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
                     <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
                       value={item.quantity}
                       onChange={(event) => {
                         const rawValue = event.target.value;
@@ -619,17 +624,17 @@ const POS: React.FC = () => {
                           updateQuantity(item.productId, item.priceTier, 0);
                           return;
                         }
-                        const value = Number(rawValue);
+                        const value = parseFloat(rawValue);
                         if (!Number.isNaN(value)) {
                           updateQuantity(item.productId, item.priceTier, value);
                         }
                       }}
-                      className="w-12 text-center text-xs font-bold bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-16 text-center text-xs font-bold bg-transparent focus:outline-none"
                     />
                     <button
                       type="button"
                       onClick={() =>
-                        updateQuantity(item.productId, item.priceTier, item.quantity + 1)
+                        updateQuantity(item.productId, item.priceTier, Number((item.quantity + 0.5).toFixed(3)))
                       }
                       className="text-gray-500 hover:text-black p-0.5 cursor-pointer"
                     >
@@ -767,8 +772,8 @@ const POS: React.FC = () => {
                 <label className="block text-xs font-bold text-gray-700 uppercase mb-2">
                   Select Payment Method
                 </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {(["Cash", "Transfer", "Card", "Split"] as const).map((method) => (
+                <div className="grid grid-cols-3 gap-2">
+                  {(["Cash", "Transfer", "POS Terminal", "Credit", "Split"] as const).map((method) => (
                     <button
                       key={method}
                       type="button"
@@ -821,20 +826,43 @@ const POS: React.FC = () => {
                   </div>
                 )}
 
-                {(paymentMethod === "Card" || paymentMethod === "Split") && (
+                {(paymentMethod === "POS Terminal" || paymentMethod === "Split") && (
                   <div>
                     <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                      Card Amount Paid
+                      POS Terminal Amount Paid
                     </label>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      value={cardAmountPaid || ""}
-                      onChange={(e) => setCardAmountPaid(Number(e.target.value) || 0)}
+                      value={posTerminalAmountPaid || ""}
+                      onChange={(e) => setPosTerminalAmountPaid(Number(e.target.value) || 0)}
                       className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500"
                       placeholder="0.00"
                     />
+                  </div>
+                )}
+
+                {paymentMethod === "Split" && (
+                  <div>
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                      Credit / On Account Amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={creditAmountPaid || ""}
+                      onChange={(e) => setCreditAmountPaid(Number(e.target.value) || 0)}
+                      className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                )}
+
+                {paymentMethod === "Credit" && (
+                  <div className="p-3 bg-amber-50 text-amber-800 rounded-lg text-xs font-medium border border-amber-200">
+                    This order will be registered as a <strong>Credit Sale</strong> (Pending payment status) under the selected customer's profile.
                   </div>
                 )}
               </div>
@@ -853,7 +881,7 @@ const POS: React.FC = () => {
                   </div>
                 )}
 
-                {remainingBalance > 0 && (
+                {remainingBalance > 0 && paymentMethod !== "Credit" && (
                   <div className="flex justify-between text-red-600 font-semibold">
                     <span>Remaining Balance:</span>
                     <span>{formatCurrency(remainingBalance)}</span>
