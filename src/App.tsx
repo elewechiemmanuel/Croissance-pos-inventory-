@@ -7,7 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
 import Products from "./pages/Products";
 import Reports from "./pages/Reports";
-import {Customers} from "./pages/Customers";
+import Customers from "./pages/Customers";
 import Purchases from "./pages/Purchases";
 import Invoices from "./pages/Invoices";
 import Waybills from "./pages/Waybills";
