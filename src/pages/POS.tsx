@@ -46,9 +46,14 @@ export default function POS() {
   const [selectedInvoiceSale, setSelectedInvoiceSale] = useState<Sale | null>(null);
   const [selectedWaybillSale, setSelectedWaybillSale] = useState<Sale | null>(null);
 
-  // Updated fixed price defaults
+  // Updated fixed price defaults & AGO configuration
   const RETAIL_PRICE = 1250;
   const WHOLESALE_PRICE = 1130;
+  
+  // New AGO configuration defaults
+  const AGO_RETAIL_PRICE = 2050;
+  const AGO_DEFAULT_STOCK = 2290;
+  
   const DEFAULT_STOCK_BALANCE = 10007.61;
 
   const categories: string[] = useMemo(() => {
@@ -79,9 +84,13 @@ export default function POS() {
 
   const addToCart = (product: Product, isWholesale: boolean, customQty?: number) => {
     setError("");
-    const unitPrice = isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE;
+    
+    // Check if product is AGO to assign specific pricing
+    const isAgo = product.name.toUpperCase().includes("AGO") || product.category.toUpperCase().includes("AGO");
+    const unitPrice = isAgo ? AGO_RETAIL_PRICE : (isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE);
+    
     const qtyToAdd = customQty !== undefined ? customQty : getProductCardQty(product.id);
-    const availableStock = product.currentStock ?? DEFAULT_STOCK_BALANCE;
+    const availableStock = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
     if (qtyToAdd <= 0) {
       setError("Please enter a valid quantity greater than 0.");
@@ -135,7 +144,8 @@ export default function POS() {
 
     const item = cart[index];
     const product = products.find((p: Product) => p.id === item.productId);
-    const availableStock = product?.currentStock ?? DEFAULT_STOCK_BALANCE;
+    const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
+    const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
     if (product && parsed > availableStock) {
       setError(`Cannot exceed available stock of ${availableStock} ${product.unit || 'units'}.`);
@@ -180,7 +190,8 @@ export default function POS() {
       const newCart = [...prev];
       const item = newCart[index];
       const product = products.find((p: Product) => p.id === item.productId);
-      const availableStock = product?.currentStock ?? DEFAULT_STOCK_BALANCE;
+      const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
+      const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
       
       const newQuantity = Math.max(0, (item.quantity || 0) + delta);
       
@@ -229,7 +240,8 @@ export default function POS() {
 
     for (const item of cart) {
       const product = products.find((p: Product) => p.id === item.productId);
-      const availableStock = product?.currentStock ?? DEFAULT_STOCK_BALANCE;
+      const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
+      const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
       if (product && item.quantity > availableStock) {
         setError(`Stock depletion alert: Insufficient stock for ${product.name}. Remaining stock: ${availableStock}`);
         return;
@@ -258,7 +270,8 @@ export default function POS() {
       for (const item of cart) {
         const targetProduct = products.find((p: Product) => p.id === item.productId);
         if (targetProduct) {
-          const currentStockVal = targetProduct.currentStock ?? DEFAULT_STOCK_BALANCE;
+          const isAgo = targetProduct.name.toUpperCase().includes("AGO") || targetProduct.category.toUpperCase().includes("AGO");
+          const currentStockVal = targetProduct.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
           const updatedStock = Math.max(0, currentStockVal - item.quantity);
           await apiCall("updateProduct", {
             id: targetProduct.id,
@@ -433,8 +446,10 @@ export default function POS() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {visibleProducts.map((product: Product) => {
                 const cardQty = cardQuantities[product.id] ?? "1";
-                const stockVal = product.currentStock ?? DEFAULT_STOCK_BALANCE;
+                const isAgo = product.name.toUpperCase().includes("AGO") || product.category.toUpperCase().includes("AGO");
+                const stockVal = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
                 const isOutOfStock = stockVal <= 0;
+                const activeRetailPrice = isAgo ? AGO_RETAIL_PRICE : RETAIL_PRICE;
 
                 return (
                   <div key={product.id} className="border border-gray-200 rounded-xl p-3.5 hover:border-blue-400 transition-colors flex flex-col bg-white">
@@ -475,18 +490,21 @@ export default function POS() {
                         title="Add with Retail Price"
                       >
                         <span className="text-[10px] text-blue-600 uppercase font-medium">Retail</span>
-                        <span className="font-bold">{formatCurrency(RETAIL_PRICE)}</span>
+                        <span className="font-bold">{formatCurrency(activeRetailPrice)}</span>
                       </button>
-                      <button 
-                        type="button"
-                        disabled={isOutOfStock}
-                        onClick={() => addToCart(product, true)}
-                        className="flex flex-col items-center justify-center bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-900 px-2 py-1.5 rounded-lg transition-colors text-xs font-semibold cursor-pointer"
-                        title="Add with Wholesale Price"
-                      >
-                        <span className="text-[10px] text-amber-600 uppercase font-medium">Wholesale</span>
-                        <span className="font-bold">{formatCurrency(WHOLESALE_PRICE)}</span>
-                      </button>
+
+                      {!isAgo && (
+                        <button 
+                          type="button"
+                          disabled={isOutOfStock}
+                          onClick={() => addToCart(product, true)}
+                          className="flex flex-col items-center justify-center bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-900 px-2 py-1.5 rounded-lg transition-colors text-xs font-semibold cursor-pointer"
+                          title="Add with Wholesale Price"
+                        >
+                          <span className="text-[10px] text-amber-600 uppercase font-medium">Wholesale</span>
+                          <span className="font-bold">{formatCurrency(WHOLESALE_PRICE)}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -722,24 +740,25 @@ export default function POS() {
             
             <div className="p-4 overflow-y-auto flex-1 space-y-3">
               {sales.length === 0 ? (
-                <p className="text-center text-gray-400 text-xs py-8">No recorded transactions yet.</p>
+                <div className="text-center py-8 text-gray-400 text-sm">No recent sales recorded yet.</div>
               ) : (
-                [...sales].reverse().slice(0, 15).map((s: Sale) => (
-                  <div key={s.id} className="p-3 border border-gray-100 rounded-xl hover:bg-gray-50 flex items-center justify-between gap-3 text-xs">
+                sales.slice(-10).reverse().map((sale: Sale) => (
+                  <div key={sale.id} className="p-3 border border-gray-200 rounded-xl flex items-center justify-between gap-3 hover:bg-gray-50">
                     <div>
-                      <div className="font-bold text-gray-900">{s.invoiceNumber || s.id}</div>
-                      <div className="text-gray-500">{s.customerName} &bull; {formatDate(s.createdAt)}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-gray-900">{sale.invoiceNumber}</span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">{sale.paymentMethod}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{sale.customerName} &bull; {formatDate(sale.createdAt)}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="font-bold text-blue-950">{formatCurrency(s.totalAmount)}</span>
+                      <span className="font-bold text-sm text-blue-950">{formatCurrency(sale.totalAmount)}</span>
                       <button
-                        onClick={() => {
-                          setShowRecentSalesModal(false);
-                          setCompletedSale(s);
-                        }}
-                        className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-semibold flex items-center gap-1 cursor-pointer"
+                        onClick={() => setCompletedSale(sale)}
+                        className="px-2.5 py-1.5 bg-blue-50 text-blue-900 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center gap-1 cursor-pointer"
                       >
-                        <Printer className="w-3 h-3" /> Reprint
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Receipt</span>
                       </button>
                     </div>
                   </div>
