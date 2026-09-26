@@ -94,7 +94,7 @@ export function Purchases() {
               >
                 {(allowedProducts.length > 0 ? allowedProducts : products).map((p: Product) => (
                   <option key={p.id} value={p.id}>
-                    {p.name} (Stock: {p.stock ?? p.currentStock ?? 0})
+                    {p.name} (Stock: {p.stock ?? p.currentStock ?? 0} {p.name.toLowerCase().includes("diesel") || p.name.toLowerCase().includes("ago") ? "LTR" : "KG"})
                   </option>
                 ))}
               </select>
