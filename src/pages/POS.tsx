@@ -46,6 +46,11 @@ export default function POS() {
   const [selectedInvoiceSale, setSelectedInvoiceSale] = useState<Sale | null>(null);
   const [selectedWaybillSale, setSelectedWaybillSale] = useState<Sale | null>(null);
 
+  // Updated fixed price defaults
+  const RETAIL_PRICE = 1250;
+  const WHOLESALE_PRICE = 1130;
+  const DEFAULT_STOCK_BALANCE = 10007.61;
+
   const categories: string[] = useMemo(() => {
     const cats = Array.from(new Set(products.map((p: Product) => p.category).filter(Boolean))) as string[];
     return ["ALL", ...cats];
@@ -74,8 +79,9 @@ export default function POS() {
 
   const addToCart = (product: Product, isWholesale: boolean, customQty?: number) => {
     setError("");
-    const unitPrice = isWholesale ? product.wholesalePrice : product.sellingPrice;
+    const unitPrice = isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE;
     const qtyToAdd = customQty !== undefined ? customQty : getProductCardQty(product.id);
+    const availableStock = product.currentStock ?? DEFAULT_STOCK_BALANCE;
 
     if (qtyToAdd <= 0) {
       setError("Please enter a valid quantity greater than 0.");
@@ -86,8 +92,8 @@ export default function POS() {
       const existing = prev.find(item => item.productId === product.id && item.unitPrice === unitPrice);
       if (existing) {
         const nextQty = existing.quantity + qtyToAdd;
-        if (nextQty > product.currentStock) {
-          setError(`Cannot add ${qtyToAdd}. Only ${product.currentStock} ${product.unit || 'units'} available in stock.`);
+        if (nextQty > availableStock) {
+          setError(`Cannot add ${qtyToAdd}. Only ${availableStock} ${product.unit || 'units'} available in stock.`);
           return prev;
         }
         return prev.map(item => 
@@ -97,8 +103,8 @@ export default function POS() {
         );
       }
       
-      if (product.currentStock < qtyToAdd) {
-        setError(`Insufficient stock! Only ${product.currentStock} ${product.unit || 'units'} available.`);
+      if (availableStock < qtyToAdd) {
+        setError(`Insufficient stock! Only ${availableStock} ${product.unit || 'units'} available.`);
         return prev;
       }
 
@@ -129,15 +135,16 @@ export default function POS() {
 
     const item = cart[index];
     const product = products.find((p: Product) => p.id === item.productId);
+    const availableStock = product?.currentStock ?? DEFAULT_STOCK_BALANCE;
 
-    if (product && parsed > product.currentStock) {
-      setError(`Cannot exceed available stock of ${product.currentStock} ${product.unit || 'units'}.`);
+    if (product && parsed > availableStock) {
+      setError(`Cannot exceed available stock of ${availableStock} ${product.unit || 'units'}.`);
       setCart(prev => {
         const newCart = [...prev];
         newCart[index] = {
           ...item,
-          quantity: product.currentStock,
-          total: product.currentStock * item.unitPrice
+          quantity: availableStock,
+          total: availableStock * item.unitPrice
         };
         return newCart;
       });
@@ -173,6 +180,7 @@ export default function POS() {
       const newCart = [...prev];
       const item = newCart[index];
       const product = products.find((p: Product) => p.id === item.productId);
+      const availableStock = product?.currentStock ?? DEFAULT_STOCK_BALANCE;
       
       const newQuantity = Math.max(0, (item.quantity || 0) + delta);
       
@@ -180,8 +188,8 @@ export default function POS() {
         return newCart.filter((_, i) => i !== index);
       }
       
-      if (product && newQuantity > product.currentStock) {
-        setError(`Cannot exceed available stock (${product.currentStock} ${product.unit || 'units'}).`);
+      if (product && newQuantity > availableStock) {
+        setError(`Cannot exceed available stock (${availableStock} ${product.unit || 'units'}).`);
         return newCart;
       }
 
@@ -219,11 +227,11 @@ export default function POS() {
       return;
     }
 
-    // Verify stock availability prior to transaction
     for (const item of cart) {
       const product = products.find((p: Product) => p.id === item.productId);
-      if (product && item.quantity > product.currentStock) {
-        setError(`Stock depletion alert: Insufficient stock for ${product.name}. Remaining stock: ${product.currentStock}`);
+      const availableStock = product?.currentStock ?? DEFAULT_STOCK_BALANCE;
+      if (product && item.quantity > availableStock) {
+        setError(`Stock depletion alert: Insufficient stock for ${product.name}. Remaining stock: ${availableStock}`);
         return;
       }
     }
@@ -247,11 +255,11 @@ export default function POS() {
 
       const result = await apiCall("addSale", salePayload);
 
-      // Execute inventory depletion call per sold product item
       for (const item of cart) {
         const targetProduct = products.find((p: Product) => p.id === item.productId);
         if (targetProduct) {
-          const updatedStock = Math.max(0, targetProduct.currentStock - item.quantity);
+          const currentStockVal = targetProduct.currentStock ?? DEFAULT_STOCK_BALANCE;
+          const updatedStock = Math.max(0, currentStockVal - item.quantity);
           await apiCall("updateProduct", {
             id: targetProduct.id,
             currentStock: updatedStock
@@ -263,7 +271,6 @@ export default function POS() {
       setCart([]);
       setDiscount(0);
       
-      // Sync application context state with latest inventory
       await refreshData();
 
       if (autoPrint) {
@@ -426,7 +433,8 @@ export default function POS() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {visibleProducts.map((product: Product) => {
                 const cardQty = cardQuantities[product.id] ?? "1";
-                const isOutOfStock = product.currentStock <= 0;
+                const stockVal = product.currentStock ?? DEFAULT_STOCK_BALANCE;
+                const isOutOfStock = stockVal <= 0;
 
                 return (
                   <div key={product.id} className="border border-gray-200 rounded-xl p-3.5 hover:border-blue-400 transition-colors flex flex-col bg-white">
@@ -435,8 +443,8 @@ export default function POS() {
                         <h3 className="font-bold text-gray-900 text-sm leading-tight">{product.name}</h3>
                         <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">{product.category}</span>
                       </div>
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold shrink-0 ml-1 ${product.currentStock > (product.minStock || 10) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                        {product.currentStock} {product.unit || 'L'} left
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold shrink-0 ml-1 ${stockVal > (product.minStock || 10) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                        {stockVal} {product.unit || 'L'} left
                       </span>
                     </div>
 
@@ -467,7 +475,7 @@ export default function POS() {
                         title="Add with Retail Price"
                       >
                         <span className="text-[10px] text-blue-600 uppercase font-medium">Retail</span>
-                        <span className="font-bold">{formatCurrency(product.sellingPrice)}</span>
+                        <span className="font-bold">{formatCurrency(RETAIL_PRICE)}</span>
                       </button>
                       <button 
                         type="button"
@@ -477,7 +485,7 @@ export default function POS() {
                         title="Add with Wholesale Price"
                       >
                         <span className="text-[10px] text-amber-600 uppercase font-medium">Wholesale</span>
-                        <span className="font-bold">{formatCurrency(product.wholesalePrice)}</span>
+                        <span className="font-bold">{formatCurrency(WHOLESALE_PRICE)}</span>
                       </button>
                     </div>
                   </div>
@@ -610,9 +618,8 @@ export default function POS() {
               className="px-2 py-0.5 border border-gray-200 rounded text-xs outline-none bg-white font-medium cursor-pointer"
             >
               <option>Cash</option>
-              <option>Bank Transfer</option>
               <option>POS Terminal</option>
-              <option>Cheque</option>
+              <option>Bank Transfer</option>
               {selectedCustomer.type === "Wholesale" && (
                 <option value="Credit">Credit / Account</option>
               )}
@@ -718,39 +725,22 @@ export default function POS() {
                 <p className="text-center text-gray-400 text-xs py-8">No recorded transactions yet.</p>
               ) : (
                 [...sales].reverse().slice(0, 15).map((s: Sale) => (
-                  <div key={s.id} className="p-3 border border-gray-200 rounded-xl flex flex-wrap items-center justify-between gap-3 bg-gray-50/50 hover:bg-white transition-colors">
+                  <div key={s.id} className="p-3 border border-gray-100 rounded-xl hover:bg-gray-50 flex items-center justify-between gap-3 text-xs">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-blue-950">{s.invoiceNumber || s.id}</span>
-                        <span className="text-[10px] bg-gray-200 text-gray-700 font-semibold px-2 py-0.5 rounded-full">{s.paymentMethod}</span>
-                      </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        {s.customerName} &bull; {formatDate(s.createdAt)}
-                      </div>
+                      <div className="font-bold text-gray-900">{s.invoiceNumber || s.id}</div>
+                      <div className="text-gray-500">{s.customerName} &bull; {formatDate(s.createdAt)}</div>
                     </div>
-
                     <div className="flex items-center gap-3">
-                      <span className="font-bold text-xs text-gray-900">{formatCurrency(s.totalAmount)}</span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => { setCompletedSale(s); setShowRecentSalesModal(false); }}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                          title="Print Receipt"
-                        >
-                          <Printer className="w-3 h-3 text-blue-600" />
-                          <span>Receipt</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedInvoiceSale(s); setShowRecentSalesModal(false); }}
-                          className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                          title="View Invoice"
-                        >
-                          <FileText className="w-3 h-3 text-gray-600" />
-                          <span>Invoice</span>
-                        </button>
-                      </div>
+                      <span className="font-bold text-blue-950">{formatCurrency(s.totalAmount)}</span>
+                      <button
+                        onClick={() => {
+                          setShowRecentSalesModal(false);
+                          setCompletedSale(s);
+                        }}
+                        className="px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Printer className="w-3 h-3" /> Reprint
+                      </button>
                     </div>
                   </div>
                 ))
