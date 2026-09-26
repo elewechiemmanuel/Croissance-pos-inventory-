@@ -124,7 +124,7 @@ export function Purchases() {
                 value={quantity} 
                 onChange={e => setQuantity(e.target.value)} 
                 className="w-full p-2 border border-gray-300 rounded text-sm" 
-                placeholder="0.00" 
+                placeholder="Enter quantity manually..." 
               />
             </div>
 
