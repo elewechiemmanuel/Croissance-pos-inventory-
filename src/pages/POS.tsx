@@ -32,17 +32,17 @@ export default function POS() {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
 
-  // Pricing defaults
+  // Pricing defaults for LPG
   const RETAIL_PRICE = 1250;
   const WHOLESALE_PRICE = 1130;
+  const DEFAULT_STOCK_BALANCE = 10007.61;
   
-  // Dedicated AGO Configuration Defaults (Requested Pricing & Stock)
+  // Dedicated AGO Configuration Defaults
   const AGO_RETAIL_PRICE = 2050;
   const AGO_WHOLESALE_PRICE = 2000;
   const AGO_DEFAULT_STOCK = 2690;
-  const DEFAULT_STOCK_BALANCE = 10007.61;
 
-  // Force-inject AGO and ensure LPG/other products remain safe and untouched
+  // Safely inject AGO alongside existing database products (like LPG) without overwriting them
   const combinedProducts = useMemo(() => {
     const virtualAgoProduct: Product = {
       id: "prod_ago_guaranteed_default",
@@ -54,11 +54,12 @@ export default function POS() {
       status: "Active"
     };
 
-    // Check if AGO already exists in user products
+    // Make sure we check exact or partial matches case-insensitively
     const hasAgo = products.some((p: Product) => 
       p.name?.toUpperCase().includes("AGO") || p.category?.toUpperCase().includes("AGO")
     );
 
+    // If AGO doesn't exist in the database backend list yet, append it safely alongside LPG products
     if (!hasAgo) {
       return [virtualAgoProduct, ...products];
     }
@@ -355,7 +356,7 @@ export default function POS() {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search AGO (Diesel), LPG, products..."
+                placeholder="Search AGO, LPG, products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
@@ -548,8 +549,8 @@ export default function POS() {
                     </button>
                   </div>
                 </div>
-              </div>
-            ))
+            </div>
+          ))
           )}
         </div>
 
@@ -610,6 +611,6 @@ export default function POS() {
           onClose={() => setCompletedSale(null)} 
         />
       )}
-    </div>
-  );
+  </div>
+);
 }
