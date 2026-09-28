@@ -26,15 +26,15 @@ function cleanObject(obj: any): any {
   return cleaned;
 }
 
-// Helper to safely format dates
+// Helper to safely format dates while preserving time
 function safeDate(val: any): string {
-  if (!val) return new Date().toISOString().split("T")[0];
+  if (!val) return new Date().toISOString();
   if (typeof val.toDate === "function") {
-    return val.toDate().toISOString().split("T")[0];
+    return val.toDate().toISOString();
   }
   const parsed = new Date(val);
   if (isNaN(parsed.getTime())) {
-    return new Date().toISOString().split("T")[0];
+    return new Date().toISOString();
   }
   return parsed.toISOString();
 }
@@ -256,7 +256,7 @@ export async function apiCall(action: string, payload: any = {}) {
         return {
           id: doc.id,
           ...data,
-          date: safeDate(data.date || data.timestamp || data.createdAt)
+          date: safeDate(data.timestamp || data.createdAt || data.date)
         };
       });
     }
@@ -268,7 +268,7 @@ export async function apiCall(action: string, payload: any = {}) {
         return {
           id: doc.id,
           ...data,
-          date: safeDate(data.date || data.createdAt)
+          date: safeDate(data.createdAt || data.date)
         };
       });
     }
@@ -280,7 +280,7 @@ export async function apiCall(action: string, payload: any = {}) {
         return {
           id: doc.id,
           ...data,
-          date: safeDate(data.date || data.timestamp || data.createdAt)
+          date: safeDate(data.timestamp || data.createdAt || data.date)
         };
       });
     }
@@ -318,7 +318,7 @@ export async function apiCall(action: string, payload: any = {}) {
         return {
           id: doc.id,
           ...data,
-          date: safeDate(data.date || data.timestamp || data.createdAt)
+          date: safeDate(data.timestamp || data.createdAt || data.date)
         };
       });
 
@@ -342,7 +342,7 @@ export async function apiCall(action: string, payload: any = {}) {
           return {
             id: doc.id,
             ...data,
-            date: safeDate(data.date || data.createdAt)
+            date: safeDate(data.createdAt || data.date)
           };
         }),
         invoices: formattedSales,
