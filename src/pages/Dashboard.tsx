@@ -1,7 +1,7 @@
 import React, { useContext, useMemo } from "react";
 import { DataContext } from "../components/Layout";
 import { formatCurrency } from "../lib/utils";
-import { Package, Users, ShoppingCart, TrendingUp, AlertTriangle } from "lucide-react";
+import { Package, Users, ShoppingCart, TrendingUp } from "lucide-react";
 import { isToday, isThisMonth, subDays, format, isSameDay } from "date-fns";
 import { Product, Sale } from "../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -108,7 +108,7 @@ export default function Dashboard() {
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
               <tr>
                 <th className="px-6 py-3">Invoice</th>
-                <th className="px-6 py-3">Date</th>
+                <th className="px-6 py-3">Date &amp; Time</th>
                 <th className="px-6 py-3">Customer</th>
                 <th className="px-6 py-3">Amount</th>
                 <th className="px-6 py-3">Method</th>
@@ -118,7 +118,12 @@ export default function Dashboard() {
               {(sales || []).slice(-5).reverse().map((sale: Sale) => (
                 <tr key={sale.id} className="hover:bg-gray-50/80 transition-colors">
                   <td className="px-6 py-4 font-bold text-blue-900">{sale.invoiceNumber}</td>
-                  <td className="px-6 py-4 text-xs text-gray-600">{new Date(sale.date).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-xs text-gray-600">
+                    {sale.date ? new Date(sale.date).toLocaleString('en-US', {
+                      dateStyle: 'medium',
+                      timeStyle: 'short'
+                    }) : 'N/A'}
+                  </td>
                   <td className="px-6 py-4 font-medium text-gray-800">{sale.customerName || "Walk-in"}</td>
                   <td className="px-6 py-4 font-bold text-gray-900">{formatCurrency(sale.totalAmount)}</td>
                   <td className="px-6 py-4">
