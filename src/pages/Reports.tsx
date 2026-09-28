@@ -40,9 +40,11 @@ export default function Reports() {
   const formatSaleDate = (sale: any) => {
     const rawDate = sale.createdAt || sale.date || sale.timestamp || sale.updatedAt;
     
-    if (!rawDate) return "Recent Sale";
+    // If no timestamp exists yet (e.g., server timestamp still resolving), fallback gracefully
+    if (!rawDate) return "Just now";
+    
     if (typeof rawDate === "string" && (rawDate.toLowerCase() === "just now" || isNaN(Date.parse(rawDate)))) {
-      return "Recent";
+      return "Just now";
     }
 
     let date: Date;
@@ -55,7 +57,7 @@ export default function Reports() {
       date = new Date(rawDate);
     }
 
-    if (isNaN(date.getTime())) return "Recent Sale";
+    if (isNaN(date.getTime())) return "Just now";
 
     return new Intl.DateTimeFormat("en-GB", {
       day: "2-digit",
