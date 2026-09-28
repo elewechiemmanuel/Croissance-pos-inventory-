@@ -3,10 +3,8 @@ import { DataContext } from "../components/Layout";
 import { useAuth } from "../store/AuthContext";
 import { apiCall } from "../lib/api";
 import { Product, Customer, SaleItem, Sale } from "../types";
-import { formatCurrency, formatDate } from "../lib/utils";
+import { formatCurrency } from "../lib/utils";
 import Receipt from "../components/Receipt";
-import InvoiceModal from "../components/InvoiceModal";
-import WaybillModal from "../components/WaybillModal";
 import { printReceipt } from "../lib/receiptPrinter";
 import { 
   Plus, 
@@ -16,14 +14,7 @@ import {
   UserCheck, 
   AlertCircle, 
   Search, 
-  Filter, 
-  Printer, 
-  History, 
-  FileText, 
-  Truck,
-  RotateCcw,
-  CheckCircle2,
-  X
+  Printer
 } from "lucide-react";
 
 export default function POS() {
@@ -40,37 +31,35 @@ export default function POS() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
-   
-  // Modals for reprint & recent sales
-  const [showRecentSalesModal, setShowRecentSalesModal] = useState(false);
-  const [selectedInvoiceSale, setSelectedInvoiceSale] = useState<Sale | null>(null);
-  const [selectedWaybillSale, setSelectedWaybillSale] = useState<Sale | null>(null);
 
-  // Updated fixed price defaults & AGO configuration
+  // Pricing defaults
   const RETAIL_PRICE = 1250;
   const WHOLESALE_PRICE = 1130;
-   
-  // New AGO configuration defaults
+  
+  // Dedicated AGO Configuration Defaults (Requested Pricing & Stock)
   const AGO_RETAIL_PRICE = 2050;
-  const AGO_DEFAULT_STOCK = 2290;
+  const AGO_WHOLESALE_PRICE = 2000;
+  const AGO_DEFAULT_STOCK = 2690;
   const DEFAULT_STOCK_BALANCE = 10007.61;
 
-  // Automatically inject AGO if it doesn't already exist in the products list
+  // Force-inject AGO and ensure LPG/other products remain safe and untouched
   const combinedProducts = useMemo(() => {
+    const virtualAgoProduct: Product = {
+      id: "prod_ago_guaranteed_default",
+      name: "AGO (Diesel)",
+      category: "Fuel",
+      currentStock: AGO_DEFAULT_STOCK,
+      minStock: 500,
+      unit: "L",
+      status: "Active"
+    };
+
+    // Check if AGO already exists in user products
     const hasAgo = products.some((p: Product) => 
-      p.name.toUpperCase().includes("AGO") || p.category.toUpperCase().includes("AGO")
+      p.name?.toUpperCase().includes("AGO") || p.category?.toUpperCase().includes("AGO")
     );
 
     if (!hasAgo) {
-      const virtualAgoProduct: Product = {
-        id: "prod_ago_default",
-        name: "AGO (Diesel)",
-        category: "Fuel",
-        currentStock: AGO_DEFAULT_STOCK,
-        minStock: 500,
-        unit: "L",
-        status: "Active"
-      };
       return [virtualAgoProduct, ...products];
     }
     return products;
@@ -84,10 +73,10 @@ export default function POS() {
   const visibleProducts = useMemo(() => {
     return combinedProducts.filter((p: Product) => {
       if (p.status !== "Active") return false;
-      const matchesCategory = selectedCategory === "ALL" || p.category.toLowerCase() === selectedCategory.toLowerCase();
+      const matchesCategory = selectedCategory === "ALL" || p.category?.toLowerCase() === selectedCategory.toLowerCase();
       const matchesSearch = !searchTerm || 
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        p.category.toLowerCase().includes(searchTerm.toLowerCase());
+        p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        p.category?.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [combinedProducts, selectedCategory, searchTerm]);
@@ -104,11 +93,10 @@ export default function POS() {
 
   const addToCart = (product: Product, isWholesale: boolean, customQty?: number) => {
     setError("");
-     
-    // Check if product is AGO to assign specific pricing
-    const isAgo = product.name.toUpperCase().includes("AGO") || product.category.toUpperCase().includes("AGO");
-    const unitPrice = isAgo ? AGO_RETAIL_PRICE : (isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE);
-     
+    
+    const isAgo = product.name?.toUpperCase().includes("AGO") || product.category?.toUpperCase().includes("AGO");
+    const unitPrice = isAgo ? (isWholesale ? AGO_WHOLESALE_PRICE : AGO_RETAIL_PRICE) : (isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE);
+    
     const qtyToAdd = customQty !== undefined ? customQty : getProductCardQty(product.id);
     const availableStock = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
@@ -131,7 +119,7 @@ export default function POS() {
             : item
         );
       }
-       
+      
       if (availableStock < qtyToAdd) {
         setError(`Insufficient stock! Only ${availableStock} ${product.unit || 'L'} available.`);
         return prev;
@@ -152,7 +140,7 @@ export default function POS() {
   const handleCartQuantityChange = (index: number, val: string) => {
     setError("");
     const parsed = parseFloat(val);
-     
+    
     if (val === "" || isNaN(parsed)) {
       setCart(prev => {
         const newCart = [...prev];
@@ -164,7 +152,7 @@ export default function POS() {
 
     const item = cart[index];
     const product = combinedProducts.find((p: Product) => p.id === item.productId);
-    const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
+    const isAgo = product?.name?.toUpperCase().includes("AGO") || product?.category?.toUpperCase().includes("AGO");
     const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
     if (product && parsed > availableStock) {
@@ -210,15 +198,15 @@ export default function POS() {
       const newCart = [...prev];
       const item = newCart[index];
       const product = combinedProducts.find((p: Product) => p.id === item.productId);
-      const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
+      const isAgo = product?.name?.toUpperCase().includes("AGO") || product?.category?.toUpperCase().includes("AGO");
       const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
-       
+      
       const newQuantity = Math.max(0, (item.quantity || 0) + delta);
-       
+      
       if (newQuantity <= 0) {
         return newCart.filter((_, i) => i !== index);
       }
-       
+      
       if (product && newQuantity > availableStock) {
         setError(`Cannot exceed available stock (${availableStock} ${product.unit || 'L'}).`);
         return newCart;
@@ -258,16 +246,6 @@ export default function POS() {
       return;
     }
 
-    for (const item of cart) {
-      const product = combinedProducts.find((p: Product) => p.id === item.productId);
-      const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
-      const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
-      if (product && item.quantity > availableStock) {
-        setError(`Stock depletion alert: Insufficient stock for ${product.name}. Remaining stock: ${availableStock}`);
-        return;
-      }
-    }
-
     setIsProcessing(true);
     setError("");
 
@@ -289,8 +267,8 @@ export default function POS() {
 
       for (const item of cart) {
         const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
-        if (targetProduct && !targetProduct.id.startsWith("prod_ago_default")) {
-          const isAgo = targetProduct.name.toUpperCase().includes("AGO") || targetProduct.category.toUpperCase().includes("AGO");
+        if (targetProduct && targetProduct.id !== "prod_ago_guaranteed_default") {
+          const isAgo = targetProduct.name?.toUpperCase().includes("AGO") || targetProduct.category?.toUpperCase().includes("AGO");
           const currentStockVal = targetProduct.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
           const updatedStock = Math.max(0, currentStockVal - item.quantity);
           await apiCall("updateProduct", {
@@ -303,7 +281,7 @@ export default function POS() {
       setCompletedSale(result);
       setCart([]);
       setDiscount(0);
-       
+      
       await refreshData();
 
       if (autoPrint) {
@@ -340,26 +318,14 @@ export default function POS() {
                 type="button"
                 onClick={() => setCompletedSale(lastSale)}
                 className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                title={`Reprint receipt for ${lastSale.invoiceNumber}`}
               >
                 <Printer className="w-3.5 h-3.5 text-blue-600" />
-                <span className="hidden sm:inline">Reprint Last Receipt</span>
-                <span className="sm:hidden">Reprint</span>
+                <span>Reprint Last Receipt</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => setShowRecentSalesModal(true)}
-              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
-              title="View recent transactions and reprint receipts/invoices"
-            >
-              <History className="w-3.5 h-3.5 text-gray-600" />
-              <span>Recent Sales</span>
-            </button>
           </div>
         </div>
-         
+        
         {/* Customer Selection & Search */}
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col gap-2.5">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -389,45 +355,13 @@ export default function POS() {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search AGO (Diesel), fuel, lubricants..."
+                placeholder="Search AGO (Diesel), LPG, products..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
               />
             </div>
           </div>
-
-          {selectedCustomer.type === "Wholesale" && (
-            <div className="pt-2 border-t border-purple-100 flex flex-wrap items-center justify-between gap-2 text-xs bg-purple-50/70 p-2.5 rounded-lg border border-purple-200">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-purple-950 uppercase tracking-wide text-[10px]">
-                  Wholesale Credit Profile:
-                </span>
-                <span className="text-gray-700">
-                  Limit: <strong className="text-purple-900">{formatCurrency(selectedCustomer.creditLimit || 0)}</strong>
-                </span>
-                <span className="text-gray-400">&bull;</span>
-                <span className="text-gray-700">
-                  Balance Owed: <strong className={(selectedCustomer.outstandingBalance || 0) > 0 ? "text-red-700" : "text-emerald-700"}>
-                    {formatCurrency(selectedCustomer.outstandingBalance || 0)}
-                  </strong>
-                </span>
-                <span className="text-gray-400">&bull;</span>
-                <span className="text-gray-700">
-                  Available: <strong className={((selectedCustomer.creditLimit || 0) - (selectedCustomer.outstandingBalance || 0)) >= 0 ? "text-emerald-800" : "text-red-600"}>
-                    {formatCurrency((selectedCustomer.creditLimit || 0) - (selectedCustomer.outstandingBalance || 0))}
-                  </strong>
-                </span>
-              </div>
-
-              {(selectedCustomer.outstandingBalance || 0) >= (selectedCustomer.creditLimit || 0) && (selectedCustomer.creditLimit || 0) > 0 && (
-                <span className="px-2 py-0.5 bg-red-100 text-red-800 font-bold rounded text-[10px] flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Credit Limit Reached
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Category Pills */}
@@ -457,7 +391,7 @@ export default function POS() {
               <p className="font-medium text-sm">No products found matching filters.</p>
               <button 
                 onClick={() => { setSearchTerm(""); setSelectedCategory("ALL"); }}
-                className="mt-2 text-xs text-blue-600 hover:underline font-semibold"
+                className="mt-2 text-xs text-blue-600 hover:underline font-semibold cursor-pointer"
               >
                 Clear filters
               </button>
@@ -466,13 +400,14 @@ export default function POS() {
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               {visibleProducts.map((product: Product) => {
                 const cardQty = cardQuantities[product.id] ?? "1";
-                const isAgo = product.name.toUpperCase().includes("AGO") || product.category.toUpperCase().includes("AGO");
+                const isAgo = product.name?.toUpperCase().includes("AGO") || product.category?.toUpperCase().includes("AGO");
                 const stockVal = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
                 const isOutOfStock = stockVal <= 0;
                 const activeRetailPrice = isAgo ? AGO_RETAIL_PRICE : RETAIL_PRICE;
+                const activeWholesalePrice = isAgo ? AGO_WHOLESALE_PRICE : WHOLESALE_PRICE;
 
                 return (
-                  <div key={product.id} className="border border-gray-200 rounded-xl p-3.5 hover:border-blue-400 transition-colors flex flex-col bg-white">
+                  <div key={product.id} className="border border-gray-200 rounded-xl p-3.5 hover:border-blue-400 transition-colors flex flex-col bg-white shadow-2xs">
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <h3 className="font-bold text-gray-900 text-sm leading-tight">{product.name}</h3>
@@ -484,7 +419,7 @@ export default function POS() {
                     </div>
 
                     <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-gray-500 font-medium">Qty (Liters):</span>
+                      <span className="text-gray-500 font-medium">Quantity:</span>
                       <div className="flex items-center gap-1">
                         <input
                           type="number"
@@ -495,7 +430,6 @@ export default function POS() {
                           onChange={(e) => handleCardQtyChange(product.id, e.target.value)}
                           placeholder="1"
                           className="w-16 px-2 py-1 text-center font-bold text-gray-900 bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
-                          title="Key in quantity in liters"
                         />
                         <span className="text-gray-400 text-[11px] font-medium">{product.unit || 'L'}</span>
                       </div>
@@ -507,24 +441,20 @@ export default function POS() {
                         disabled={isOutOfStock}
                         onClick={() => addToCart(product, false)}
                         className="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed text-blue-900 px-2 py-1.5 rounded-lg transition-colors text-xs font-semibold cursor-pointer"
-                        title="Add with Retail Price"
                       >
                         <span className="text-[10px] text-blue-600 uppercase font-medium">Retail</span>
                         <span className="font-bold">{formatCurrency(activeRetailPrice)}</span>
                       </button>
 
-                      {!isAgo && (
-                        <button 
-                          type="button"
-                          disabled={isOutOfStock}
-                          onClick={() => addToCart(product, true)}
-                          className="flex flex-col items-center justify-center bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-900 px-2 py-1.5 rounded-lg transition-colors text-xs font-semibold cursor-pointer"
-                          title="Add with Wholesale Price"
-                        >
-                          <span className="text-[10px] text-amber-600 uppercase font-medium">Wholesale</span>
-                          <span className="font-bold">{formatCurrency(WHOLESALE_PRICE)}</span>
-                        </button>
-                      )}
+                      <button 
+                        type="button"
+                        disabled={isOutOfStock}
+                        onClick={() => addToCart(product, true)}
+                        className="flex flex-col items-center justify-center bg-amber-50 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed text-amber-900 px-2 py-1.5 rounded-lg transition-colors text-xs font-semibold cursor-pointer"
+                      >
+                        <span className="text-[10px] text-amber-600 uppercase font-medium">Wholesale</span>
+                        <span className="font-bold">{formatCurrency(activeWholesalePrice)}</span>
+                      </button>
                     </div>
                   </div>
                 );
@@ -550,7 +480,6 @@ export default function POS() {
                 type="button"
                 onClick={clearCart}
                 className="text-[11px] text-blue-200 hover:text-white underline cursor-pointer"
-                title="Clear all items in cart"
               >
                 Clear
               </button>
@@ -570,7 +499,7 @@ export default function POS() {
             <div className="h-full flex flex-col items-center justify-center text-gray-400 py-8">
               <ShoppingCart className="w-10 h-10 mb-2 opacity-20" />
               <p className="text-sm font-medium">Cart is empty</p>
-              <p className="text-xs text-gray-400 mt-1">Select products and key in quantity in liters</p>
+              <p className="text-xs text-gray-400 mt-1">Select products to begin sale</p>
             </div>
           ) : (
             cart.map((item, index) => (
@@ -581,36 +510,31 @@ export default function POS() {
                 </div>
                  
                 <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span className="text-[11px]">@{formatCurrency(item.unitPrice)}/L</span>
+                  <span className="text-[11px]">@{formatCurrency(item.unitPrice)}</span>
                    
                   <div className="flex items-center gap-1.5">
                     <button 
                       type="button"
                       onClick={() => updateQuantity(index, -1)} 
                       className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors cursor-pointer"
-                      title="Decrease by 1 Liter"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
                      
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0.1"
-                        step="any"
-                        value={item.quantity === 0 ? "" : item.quantity}
-                        onChange={(e) => handleCartQuantityChange(index, e.target.value)}
-                        onBlur={() => handleCartQuantityBlur(index)}
-                        className="w-16 px-1.5 py-0.5 text-center font-bold text-xs text-gray-900 bg-white border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-2xs"
-                        title="Key in quantity in liters directly"
-                      />
-                    </div>
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="any"
+                      value={item.quantity === 0 ? "" : item.quantity}
+                      onChange={(e) => handleCartQuantityChange(index, e.target.value)}
+                      onBlur={() => handleCartQuantityBlur(index)}
+                      className="w-16 px-1.5 py-0.5 text-center font-bold text-xs text-gray-900 bg-white border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-blue-600"
+                    />
 
                     <button 
                       type="button"
                       onClick={() => updateQuantity(index, 1)} 
                       className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors cursor-pointer"
-                      title="Increase by 1 Liter"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -619,7 +543,6 @@ export default function POS() {
                       type="button"
                       onClick={() => removeFromCart(index)} 
                       className="p-1 ml-1 text-gray-400 hover:text-red-600 rounded transition-colors cursor-pointer"
-                      title="Remove item from cart"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -638,12 +561,12 @@ export default function POS() {
           </div>
            
           <div className="flex justify-between items-center text-xs">
-            <span className="text-gray-600">Discount ({user?.role === "admin" ? "Admin" : "Standard"})</span>
+            <span className="text-gray-600">Discount</span>
             <input 
               type="number" 
               value={discount === 0 ? "" : discount}
               onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
-              className="w-20 text-right px-2 py-0.5 text-xs bg-white border border-gray-200 rounded outline-none focus:ring-1 focus:ring-amber-500"
+              className="w-20 text-right px-2 py-0.5 text-xs bg-white border border-gray-200 rounded outline-none"
               placeholder="0.00"
             />
           </div>
@@ -658,32 +581,8 @@ export default function POS() {
               <option>Cash</option>
               <option>POS Terminal</option>
               <option>Bank Transfer</option>
-              {selectedCustomer.type === "Wholesale" && (
-                <option value="Credit">Credit / Account</option>
-              )}
             </select>
           </div>
-
-          {paymentMethod === "Credit" && selectedCustomer.type === "Wholesale" && (
-            <div className="p-2 bg-purple-50 rounded-lg border border-purple-200 text-[11px] text-purple-900 space-y-1">
-              <div className="flex justify-between font-semibold">
-                <span>Credit Sale Mode:</span>
-                <span className="text-purple-700">Account #{selectedCustomer.id}</span>
-              </div>
-              <div className="flex justify-between text-[10px] text-gray-600">
-                <span>Projected New Balance:</span>
-                <span className="font-bold text-red-700">
-                  {formatCurrency((selectedCustomer.outstandingBalance || 0) + total)}
-                </span>
-              </div>
-              {(selectedCustomer.outstandingBalance || 0) + total > (selectedCustomer.creditLimit || 0) && (selectedCustomer.creditLimit || 0) > 0 && (
-                <div className="text-[10px] text-red-700 font-bold flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3 text-red-600 shrink-0" />
-                  <span>Warning: Sale exceeds authorized credit limit of {formatCurrency(selectedCustomer.creditLimit || 0)}</span>
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
             <span className="font-bold text-sm text-gray-800">Total Payable</span>
@@ -696,25 +595,14 @@ export default function POS() {
               onClick={() => handleCheckout(true)}
               disabled={cart.length === 0 || isProcessing}
               className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-sm flex justify-center items-center gap-2 text-sm cursor-pointer"
-              title="Finalize sale and automatically open printer dialog"
             >
               <Printer className="w-4 h-4 text-amber-400" />
               <span>{isProcessing ? "Processing..." : "Confirm & Print Receipt"}</span>
-            </button>
-
-            <button 
-              type="button"
-              onClick={() => handleCheckout(false)}
-              disabled={cart.length === 0 || isProcessing}
-              className="w-full bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 text-gray-800 font-semibold py-2 rounded-xl transition-colors text-xs flex justify-center items-center gap-1.5 cursor-pointer"
-            >
-              <span>Confirm Payment Only</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* POS Receipt Modal */}
       {completedSale && (
         <Receipt 
           sale={completedSale} 
