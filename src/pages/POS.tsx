@@ -40,7 +40,7 @@ export default function POS() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
-  
+   
   // Modals for reprint & recent sales
   const [showRecentSalesModal, setShowRecentSalesModal] = useState(false);
   const [selectedInvoiceSale, setSelectedInvoiceSale] = useState<Sale | null>(null);
@@ -49,20 +49,40 @@ export default function POS() {
   // Updated fixed price defaults & AGO configuration
   const RETAIL_PRICE = 1250;
   const WHOLESALE_PRICE = 1130;
-  
+   
   // New AGO configuration defaults
   const AGO_RETAIL_PRICE = 2050;
   const AGO_DEFAULT_STOCK = 2290;
-  
   const DEFAULT_STOCK_BALANCE = 10007.61;
 
-  const categories: string[] = useMemo(() => {
-    const cats = Array.from(new Set(products.map((p: Product) => p.category).filter(Boolean))) as string[];
-    return ["ALL", ...cats];
+  // Automatically inject AGO if it doesn't already exist in the products list
+  const combinedProducts = useMemo(() => {
+    const hasAgo = products.some((p: Product) => 
+      p.name.toUpperCase().includes("AGO") || p.category.toUpperCase().includes("AGO")
+    );
+
+    if (!hasAgo) {
+      const virtualAgoProduct: Product = {
+        id: "prod_ago_default",
+        name: "AGO (Diesel)",
+        category: "Fuel",
+        currentStock: AGO_DEFAULT_STOCK,
+        minStock: 500,
+        unit: "L",
+        status: "Active"
+      };
+      return [virtualAgoProduct, ...products];
+    }
+    return products;
   }, [products]);
 
+  const categories: string[] = useMemo(() => {
+    const cats = Array.from(new Set(combinedProducts.map((p: Product) => p.category).filter(Boolean))) as string[];
+    return ["ALL", ...cats];
+  }, [combinedProducts]);
+
   const visibleProducts = useMemo(() => {
-    return products.filter((p: Product) => {
+    return combinedProducts.filter((p: Product) => {
       if (p.status !== "Active") return false;
       const matchesCategory = selectedCategory === "ALL" || p.category.toLowerCase() === selectedCategory.toLowerCase();
       const matchesSearch = !searchTerm || 
@@ -70,7 +90,7 @@ export default function POS() {
         p.category.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesCategory && matchesSearch;
     });
-  }, [products, selectedCategory, searchTerm]);
+  }, [combinedProducts, selectedCategory, searchTerm]);
 
   const getProductCardQty = (productId: string): number => {
     const val = cardQuantities[productId];
@@ -84,11 +104,11 @@ export default function POS() {
 
   const addToCart = (product: Product, isWholesale: boolean, customQty?: number) => {
     setError("");
-    
+     
     // Check if product is AGO to assign specific pricing
     const isAgo = product.name.toUpperCase().includes("AGO") || product.category.toUpperCase().includes("AGO");
     const unitPrice = isAgo ? AGO_RETAIL_PRICE : (isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE);
-    
+     
     const qtyToAdd = customQty !== undefined ? customQty : getProductCardQty(product.id);
     const availableStock = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
@@ -102,7 +122,7 @@ export default function POS() {
       if (existing) {
         const nextQty = existing.quantity + qtyToAdd;
         if (nextQty > availableStock) {
-          setError(`Cannot add ${qtyToAdd}. Only ${availableStock} ${product.unit || 'units'} available in stock.`);
+          setError(`Cannot add ${qtyToAdd}. Only ${availableStock} ${product.unit || 'L'} available in stock.`);
           return prev;
         }
         return prev.map(item => 
@@ -111,9 +131,9 @@ export default function POS() {
             : item
         );
       }
-      
+       
       if (availableStock < qtyToAdd) {
-        setError(`Insufficient stock! Only ${availableStock} ${product.unit || 'units'} available.`);
+        setError(`Insufficient stock! Only ${availableStock} ${product.unit || 'L'} available.`);
         return prev;
       }
 
@@ -132,7 +152,7 @@ export default function POS() {
   const handleCartQuantityChange = (index: number, val: string) => {
     setError("");
     const parsed = parseFloat(val);
-    
+     
     if (val === "" || isNaN(parsed)) {
       setCart(prev => {
         const newCart = [...prev];
@@ -143,12 +163,12 @@ export default function POS() {
     }
 
     const item = cart[index];
-    const product = products.find((p: Product) => p.id === item.productId);
+    const product = combinedProducts.find((p: Product) => p.id === item.productId);
     const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
     const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
     if (product && parsed > availableStock) {
-      setError(`Cannot exceed available stock of ${availableStock} ${product.unit || 'units'}.`);
+      setError(`Cannot exceed available stock of ${availableStock} ${product.unit || 'L'}.`);
       setCart(prev => {
         const newCart = [...prev];
         newCart[index] = {
@@ -189,18 +209,18 @@ export default function POS() {
     setCart(prev => {
       const newCart = [...prev];
       const item = newCart[index];
-      const product = products.find((p: Product) => p.id === item.productId);
+      const product = combinedProducts.find((p: Product) => p.id === item.productId);
       const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
       const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
-      
+       
       const newQuantity = Math.max(0, (item.quantity || 0) + delta);
-      
+       
       if (newQuantity <= 0) {
         return newCart.filter((_, i) => i !== index);
       }
-      
+       
       if (product && newQuantity > availableStock) {
-        setError(`Cannot exceed available stock (${availableStock} ${product.unit || 'units'}).`);
+        setError(`Cannot exceed available stock (${availableStock} ${product.unit || 'L'}).`);
         return newCart;
       }
 
@@ -239,7 +259,7 @@ export default function POS() {
     }
 
     for (const item of cart) {
-      const product = products.find((p: Product) => p.id === item.productId);
+      const product = combinedProducts.find((p: Product) => p.id === item.productId);
       const isAgo = product?.name.toUpperCase().includes("AGO") || product?.category.toUpperCase().includes("AGO");
       const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
       if (product && item.quantity > availableStock) {
@@ -268,8 +288,8 @@ export default function POS() {
       const result = await apiCall("addSale", salePayload);
 
       for (const item of cart) {
-        const targetProduct = products.find((p: Product) => p.id === item.productId);
-        if (targetProduct) {
+        const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
+        if (targetProduct && !targetProduct.id.startsWith("prod_ago_default")) {
           const isAgo = targetProduct.name.toUpperCase().includes("AGO") || targetProduct.category.toUpperCase().includes("AGO");
           const currentStockVal = targetProduct.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
           const updatedStock = Math.max(0, currentStockVal - item.quantity);
@@ -283,7 +303,7 @@ export default function POS() {
       setCompletedSale(result);
       setCart([]);
       setDiscount(0);
-      
+       
       await refreshData();
 
       if (autoPrint) {
@@ -339,7 +359,7 @@ export default function POS() {
             </button>
           </div>
         </div>
-        
+         
         {/* Customer Selection & Search */}
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col gap-2.5">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -369,7 +389,7 @@ export default function POS() {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search fuel, lubricants, stock..."
+                placeholder="Search AGO (Diesel), fuel, lubricants..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
@@ -464,7 +484,7 @@ export default function POS() {
                     </div>
 
                     <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 text-xs">
-                      <span className="text-gray-500 font-medium">Qty to sell:</span>
+                      <span className="text-gray-500 font-medium">Qty (Liters):</span>
                       <div className="flex items-center gap-1">
                         <input
                           type="number"
@@ -475,12 +495,12 @@ export default function POS() {
                           onChange={(e) => handleCardQtyChange(product.id, e.target.value)}
                           placeholder="1"
                           className="w-16 px-2 py-1 text-center font-bold text-gray-900 bg-gray-50 border border-gray-300 rounded-lg outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
-                          title="Key in quantity to add"
+                          title="Key in quantity in liters"
                         />
-                        <span className="text-gray-400 text-[11px] font-medium">{product.unit || 'units'}</span>
+                        <span className="text-gray-400 text-[11px] font-medium">{product.unit || 'L'}</span>
                       </div>
                     </div>
-                    
+                     
                     <div className="mt-3 pt-2 grid grid-cols-2 gap-2">
                       <button 
                         type="button"
@@ -550,7 +570,7 @@ export default function POS() {
             <div className="h-full flex flex-col items-center justify-center text-gray-400 py-8">
               <ShoppingCart className="w-10 h-10 mb-2 opacity-20" />
               <p className="text-sm font-medium">Cart is empty</p>
-              <p className="text-xs text-gray-400 mt-1">Select products and key in quantity to add</p>
+              <p className="text-xs text-gray-400 mt-1">Select products and key in quantity in liters</p>
             </div>
           ) : (
             cart.map((item, index) => (
@@ -559,20 +579,20 @@ export default function POS() {
                   <span className="font-bold text-xs text-gray-900 leading-tight">{item.productName}</span>
                   <span className="font-bold text-xs text-blue-950">{formatCurrency(item.total)}</span>
                 </div>
-                
+                 
                 <div className="flex justify-between items-center text-xs text-gray-500">
-                  <span className="text-[11px]">@{formatCurrency(item.unitPrice)}</span>
-                  
+                  <span className="text-[11px]">@{formatCurrency(item.unitPrice)}/L</span>
+                   
                   <div className="flex items-center gap-1.5">
                     <button 
                       type="button"
                       onClick={() => updateQuantity(index, -1)} 
                       className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors cursor-pointer"
-                      title="Decrease by 1"
+                      title="Decrease by 1 Liter"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    
+                     
                     <div className="relative">
                       <input
                         type="number"
@@ -582,7 +602,7 @@ export default function POS() {
                         onChange={(e) => handleCartQuantityChange(index, e.target.value)}
                         onBlur={() => handleCartQuantityBlur(index)}
                         className="w-16 px-1.5 py-0.5 text-center font-bold text-xs text-gray-900 bg-white border border-gray-300 rounded-md outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 shadow-2xs"
-                        title="Key in quantity to be sold directly"
+                        title="Key in quantity in liters directly"
                       />
                     </div>
 
@@ -590,7 +610,7 @@ export default function POS() {
                       type="button"
                       onClick={() => updateQuantity(index, 1)} 
                       className="p-1 hover:bg-gray-100 rounded text-gray-600 transition-colors cursor-pointer"
-                      title="Increase by 1"
+                      title="Increase by 1 Liter"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -616,7 +636,7 @@ export default function POS() {
             <span>Subtotal</span>
             <span className="font-semibold text-gray-900">{formatCurrency(subtotal)}</span>
           </div>
-          
+           
           <div className="flex justify-between items-center text-xs">
             <span className="text-gray-600">Discount ({user?.role === "admin" ? "Admin" : "Standard"})</span>
             <input 
@@ -701,72 +721,6 @@ export default function POS() {
           settings={settings} 
           onClose={() => setCompletedSale(null)} 
         />
-      )}
-
-      {/* Invoice Modal */}
-      {selectedInvoiceSale && (
-        <InvoiceModal
-          sale={selectedInvoiceSale}
-          settings={settings}
-          onClose={() => setSelectedInvoiceSale(null)}
-        />
-      )}
-
-      {/* Waybill Modal */}
-      {selectedWaybillSale && (
-        <WaybillModal
-          sale={selectedWaybillSale}
-          settings={settings}
-          onClose={() => setSelectedWaybillSale(null)}
-        />
-      )}
-
-      {/* Recent Sales Drawer Modal */}
-      {showRecentSalesModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 bg-blue-950 text-white">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-sm">Recent POS Sales &amp; Reprint</h3>
-              </div>
-              <button 
-                onClick={() => setShowRecentSalesModal(false)}
-                className="text-gray-300 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-4 overflow-y-auto flex-1 space-y-3">
-              {sales.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">No recent sales recorded yet.</div>
-              ) : (
-                sales.slice(-10).reverse().map((sale: Sale) => (
-                  <div key={sale.id} className="p-3 border border-gray-200 rounded-xl flex items-center justify-between gap-3 hover:bg-gray-50">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs text-gray-900">{sale.invoiceNumber}</span>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">{sale.paymentMethod}</span>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">{sale.customerName} &bull; {formatDate(sale.createdAt)}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-sm text-blue-950">{formatCurrency(sale.totalAmount)}</span>
-                      <button
-                        onClick={() => setCompletedSale(sale)}
-                        className="px-2.5 py-1.5 bg-blue-50 text-blue-900 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Receipt</span>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
