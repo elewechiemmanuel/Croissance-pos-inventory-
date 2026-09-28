@@ -32,11 +32,11 @@ export default function POS() {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
 
-  // Pricing defaults for LPG
-  const RETAIL_PRICE = 1250;
-  const WHOLESALE_PRICE = 1130;
+  // Fallback defaults if not set on the product
+  const DEFAULT_RETAIL_PRICE = 1250;
+  const DEFAULT_WHOLESALE_PRICE = 1130;
   const DEFAULT_STOCK_BALANCE = 10007.61;
-  
+   
   // Dedicated AGO Configuration Defaults
   const AGO_RETAIL_PRICE = 2050;
   const AGO_WHOLESALE_PRICE = 2000;
@@ -51,15 +51,15 @@ export default function POS() {
       currentStock: AGO_DEFAULT_STOCK,
       minStock: 500,
       unit: "L",
-      status: "Active"
+      status: "Active",
+      retailPrice: AGO_RETAIL_PRICE,
+      wholesalePrice: AGO_WHOLESALE_PRICE
     };
 
-    // Make sure we check exact or partial matches case-insensitively
     const hasAgo = products.some((p: Product) => 
       p.name?.toUpperCase().includes("AGO") || p.category?.toUpperCase().includes("AGO")
     );
 
-    // If AGO doesn't exist in the database backend list yet, append it safely alongside LPG products
     if (!hasAgo) {
       return [virtualAgoProduct, ...products];
     }
@@ -94,10 +94,14 @@ export default function POS() {
 
   const addToCart = (product: Product, isWholesale: boolean, customQty?: number) => {
     setError("");
-    
+     
     const isAgo = product.name?.toUpperCase().includes("AGO") || product.category?.toUpperCase().includes("AGO");
-    const unitPrice = isAgo ? (isWholesale ? AGO_WHOLESALE_PRICE : AGO_RETAIL_PRICE) : (isWholesale ? WHOLESALE_PRICE : RETAIL_PRICE);
     
+    // Pull price dynamically from the product object, fallback to defaults if undefined
+    const unitPrice = isWholesale 
+      ? (product.wholesalePrice ?? (isAgo ? AGO_WHOLESALE_PRICE : DEFAULT_WHOLESALE_PRICE))
+      : (product.retailPrice ?? (isAgo ? AGO_RETAIL_PRICE : DEFAULT_RETAIL_PRICE));
+     
     const qtyToAdd = customQty !== undefined ? customQty : getProductCardQty(product.id);
     const availableStock = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
@@ -120,7 +124,7 @@ export default function POS() {
             : item
         );
       }
-      
+       
       if (availableStock < qtyToAdd) {
         setError(`Insufficient stock! Only ${availableStock} ${product.unit || 'L'} available.`);
         return prev;
@@ -141,7 +145,7 @@ export default function POS() {
   const handleCartQuantityChange = (index: number, val: string) => {
     setError("");
     const parsed = parseFloat(val);
-    
+     
     if (val === "" || isNaN(parsed)) {
       setCart(prev => {
         const newCart = [...prev];
@@ -201,13 +205,13 @@ export default function POS() {
       const product = combinedProducts.find((p: Product) => p.id === item.productId);
       const isAgo = product?.name?.toUpperCase().includes("AGO") || product?.category?.toUpperCase().includes("AGO");
       const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
-      
+       
       const newQuantity = Math.max(0, (item.quantity || 0) + delta);
-      
+       
       if (newQuantity <= 0) {
         return newCart.filter((_, i) => i !== index);
       }
-      
+       
       if (product && newQuantity > availableStock) {
         setError(`Cannot exceed available stock (${availableStock} ${product.unit || 'L'}).`);
         return newCart;
@@ -282,7 +286,7 @@ export default function POS() {
       setCompletedSale(result);
       setCart([]);
       setDiscount(0);
-      
+       
       await refreshData();
 
       if (autoPrint) {
@@ -326,7 +330,7 @@ export default function POS() {
             )}
           </div>
         </div>
-        
+         
         {/* Customer Selection & Search */}
         <div className="bg-white p-3 sm:p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col gap-2.5">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -404,8 +408,10 @@ export default function POS() {
                 const isAgo = product.name?.toUpperCase().includes("AGO") || product.category?.toUpperCase().includes("AGO");
                 const stockVal = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
                 const isOutOfStock = stockVal <= 0;
-                const activeRetailPrice = isAgo ? AGO_RETAIL_PRICE : RETAIL_PRICE;
-                const activeWholesalePrice = isAgo ? AGO_WHOLESALE_PRICE : WHOLESALE_PRICE;
+                
+                // Read live price from product properties, with safe fallbacks
+                const activeRetailPrice = product.retailPrice ?? (isAgo ? AGO_RETAIL_PRICE : DEFAULT_RETAIL_PRICE);
+                const activeWholesalePrice = product.wholesalePrice ?? (isAgo ? AGO_WHOLESALE_PRICE : DEFAULT_WHOLESALE_PRICE);
 
                 return (
                   <div key={product.id} className="border border-gray-200 rounded-xl p-3.5 hover:border-blue-400 transition-colors flex flex-col bg-white shadow-2xs">
@@ -549,8 +555,8 @@ export default function POS() {
                     </button>
                   </div>
                 </div>
-            </div>
-          ))
+              </div>
+            ))
           )}
         </div>
 
@@ -611,6 +617,6 @@ export default function POS() {
           onClose={() => setCompletedSale(null)} 
         />
       )}
-  </div>
-);
+    </div>
+  );
 }
