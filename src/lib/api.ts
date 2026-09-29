@@ -117,8 +117,8 @@ export async function apiCall(action: string, payload: any = {}) {
         ...payloadWithActor,
         invoiceNumber,
         createdAt: serverTimestamp(),
-        date: payload.date || now.toISOString().split("T")[0],
-        timestamp: now.toISOString()
+        timestamp: now.toISOString(), // FIX: Guaranteed client-side timestamp string for immediate UI rendering
+        date: payload.date || now.toISOString().split("T")[0]
       });
 
       const docRef = await addDoc(collection(db, "sales"), saleData);
@@ -354,7 +354,6 @@ export async function apiCall(action: string, payload: any = {}) {
       };
     }
 
-    // Fallback for any other custom action
     console.warn(`Unhandled action "${action}" passed to apiCall.`);
     return {  
       success: true,  

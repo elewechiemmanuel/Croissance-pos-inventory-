@@ -1,476 +1,340 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useMemo } from "react";
 import { DataContext } from "../components/Layout";
+import { useAuth } from "../store/AuthContext";
 import { apiCall } from "../lib/api";
-import { formatCurrency } from "../lib/utils";
 import { Product } from "../types";
-import { Edit2, Trash2, PlusCircle, PackagePlus, AlertCircle } from "lucide-react";
+import { formatCurrency } from "../lib/utils";
+import { Plus, Search, Edit2, Trash2, AlertCircle, Package } from "lucide-react";
 
 export default function Products() {
-  const { products = [], loading, refreshData } = useContext(DataContext) as { products: Product[]; loading: boolean; refreshData: () => Promise<void> };
+  const { products = [], refreshData } = useContext(DataContext);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [restockingProduct, setRestockingProduct] = useState<Product | null>(null);
-  const [restockQty, setRestockQty] = useState<string>("");
-  
-  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Form state
   const [formData, setFormData] = useState({
     name: "",
-    sku: "",
-    category: "",
-    unit: "L",
-    buyingPrice: "",
-    sellingPrice: "",
-    wholesalePrice: "",
-    openingStock: "",
-    minStock: "",
+    category: "LPG",
+    currentStock: 0,
+    minStock: 100,
+    unit: "kg",
     status: "Active"
   });
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      sku: "",
-      category: "",
-      unit: "L",
-      buyingPrice: "",
-      sellingPrice: "",
-      wholesalePrice: "",
-      openingStock: "",
-      minStock: "",
-      status: "Active"
-    });
-    setEditingProduct(null);
-    setShowNewCategoryInput(false);
-    setNewCategoryName("");
-  };
+  // Categories filter list
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(products.map((p: Product) => p.category).filter(Boolean))) as string[];
+    return ["ALL", ...cats];
+  }, [products]);
 
-  const handleOpenEdit = (product: Product) => {
-    setEditingProduct(product);
-    setFormData({
-      name: product.name || "",
-      sku: product.sku || "",
-      category: product.category || "",
-      unit: product.unit || "L",
-      buyingPrice: product.buyingPrice?.toString() || "",
-      sellingPrice: product.sellingPrice?.toString() || "",
-      wholesalePrice: product.wholesalePrice?.toString() || "",
-      openingStock: product.currentStock?.toString() || product.openingStock?.toString() || "0",
-      minStock: product.minStock?.toString() || "10",
-      status: product.status || "Active"
+  // Filtered products list
+  const filteredProducts = useMemo(() => {
+    return products.filter((p: Product) => {
+      const matchesCategory = selectedCategory === "ALL" || p.category?.toLowerCase() === selectedCategory.toLowerCase();
+      const matchesSearch = !searchTerm || 
+        p.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        p.category?.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesCategory && matchesSearch;
     });
+  }, [products, searchTerm, selectedCategory]);
+
+  const handleOpenModal = (product?: Product) => {
+    setError("");
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        name: product.name || "",
+        category: product.category || "LPG",
+        currentStock: product.currentStock ?? 0,
+        minStock: product.minStock ?? 100,
+        unit: product.unit || "kg",
+        status: product.status || "Active"
+      });
+    } else {
+      setEditingProduct(null);
+      setFormData({
+        name: "",
+        category: "LPG",
+        currentStock: 0,
+        minStock: 100,
+        unit: "kg",
+        status: "Active"
+      });
+    }
     setIsModalOpen(true);
-  };
-
-  const handleOpenRestock = (product: Product) => {
-    setRestockingProduct(product);
-    setRestockQty("");
-    setIsRestockModalOpen(true);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const finalCategory = showNewCategoryInput ? newCategoryName : formData.category;
-      const initialStock = Number(formData.openingStock) || 0;
-
-      const payload = {
-        name: formData.name,
-        sku: formData.sku || `SKU-${Date.now().toString().slice(-4)}`,
-        category: finalCategory || "General",
-        unit: formData.unit,
-        buyingPrice: Number(formData.buyingPrice) || 0,
-        sellingPrice: Number(formData.sellingPrice) || 0,
-        wholesalePrice: Number(formData.wholesalePrice) || 0,
-        minStock: Number(formData.minStock) || 0,
-        status: formData.status || "Active",
-        updatedAt: new Date().toISOString()
-      };
-
-      if (editingProduct) {
-        await apiCall("updateProduct", { ...payload, id: editingProduct.id });
-      } else {
-        await apiCall("addProduct", {
-          ...payload,
-          openingStock: initialStock,
-          currentStock: initialStock
-        });
-      }
-
-      setIsModalOpen(false);
-      resetForm();
-      await refreshData();
-    } catch (error: any) {
-      console.error("Failed to save product:", error);
-      alert(`Error saving product: ${error.message || "Unknown error"}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleReceiveStock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!restockingProduct) return;
-    
-    const qtyToAdd = Number(restockQty);
-    if (qtyToAdd <= 0) {
-      alert("Please enter a valid stock quantity to receive.");
+    if (!formData.name.trim()) {
+      setError("Product name is required.");
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
+    setError("");
+
     try {
-      const currentStock = restockingProduct.currentStock ?? restockingProduct.openingStock ?? 0;
-      const updatedStock = currentStock + qtyToAdd;
+      if (editingProduct) {
+        await apiCall("updateProduct", {
+          id: editingProduct.id,
+          ...formData
+        });
+      } else {
+        await apiCall("addProduct", formData);
+      }
 
-      await apiCall("updateProduct", {
-        id: restockingProduct.id,
-        currentStock: updatedStock,
-        updatedAt: new Date().toISOString()
-      });
-
-      setIsRestockModalOpen(false);
-      setRestockingProduct(null);
-      setRestockQty("");
       await refreshData();
-    } catch (error: any) {
-      console.error("Failed to receive stock:", error);
-      alert(`Error receiving stock: ${error.message || "Unknown error"}`);
+      setIsModalOpen(false);
+    } catch (err: any) {
+      setError(err.message || "Failed to save product.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleDeleteProduct = async (productId: string, productName: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${productName}"?`)) return;
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) return;
 
     try {
-      await apiCall("deleteProduct", { id: productId });
+      await apiCall("deleteProduct", { id });
       await refreshData();
-    } catch (error: any) {
-      console.error("Failed to delete product:", error);
-      alert(`Error deleting product: ${error.message || "Unknown error"}`);
+    } catch (err: any) {
+      alert(err.message || "Failed to delete product.");
     }
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 space-y-5 bg-gray-50 min-h-[calc(100vh-2rem)] font-sans">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl shadow-2xs border border-gray-100">
         <div>
-          <h1 className="text-2xl font-bold text-blue-950">Products Inventory</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Manage stock levels, retail pricing, and wholesale pricing</p>
+          <h1 className="text-xl font-bold text-blue-950 tracking-tight">Inventory & Products</h1>
+          <p className="text-xs text-gray-500 mt-0.5">Manage stock levels, prices, and product categories.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            resetForm();
-            setIsModalOpen(true);
-          }}
-          className="bg-blue-900 text-white px-4 py-2 rounded-xl hover:bg-blue-800 transition font-semibold text-sm shadow-2xs cursor-pointer flex items-center gap-1.5"
-        >
-          <PlusCircle className="w-4 h-4 text-amber-400" />
-          <span>Add Product</span>
-        </button>
+
+        {isAdmin && (
+          <button
+            onClick={() => handleOpenModal()}
+            className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-sm cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Product</span>
+          </button>
+        )}
       </div>
 
-      {/* Product List Table */}
-      <div className="bg-white rounded-xl shadow-2xs border border-gray-100 overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b bg-gray-50 text-gray-600 text-xs font-semibold tracking-wider">
-              <th className="p-4">NAME</th>
-              <th className="p-4">CATEGORY</th>
-              <th className="p-4">UNIT</th>
-              <th className="p-4">COST PRICE</th>
-              <th className="p-4">RETAIL PRICE</th>
-              <th className="p-4">WHOLESALE PRICE</th>
-              <th className="p-4">STOCK</th>
-              <th className="p-4">STATUS</th>
-              <th className="p-4 text-right">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={9} className="p-8 text-center text-gray-400 text-sm">
-                  Loading inventory products...
-                </td>
-              </tr>
-            ) : products && products.length > 0 ? (
-              products.map((product: any) => {
-                const stockVal = product.currentStock ?? product.openingStock ?? 0;
-                return (
-                  <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50/60 text-xs transition-colors">
-                    <td className="p-4 font-bold text-gray-900">{product.name}</td>
-                    <td className="p-4 text-gray-600">{product.category}</td>
-                    <td className="p-4 text-gray-500 font-medium">{product.unit || 'L'}</td>
-                    <td className="p-4 text-gray-700">{formatCurrency(product.buyingPrice || 0)}</td>
-                    <td className="p-4 font-bold text-blue-900">{formatCurrency(product.sellingPrice || 0)}</td>
-                    <td className="p-4 font-semibold text-amber-800">{formatCurrency(product.wholesalePrice || 0)}</td>
-                    <td className="p-4 font-bold text-blue-600">
-                      <span className={`px-2 py-0.5 rounded-full ${stockVal > (product.minStock || 10) ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
-                        {stockVal} {product.unit || 'L'}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className={`px-2 py-0.5 rounded font-semibold ${product.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                        {product.status || "Active"}
-                      </span>
-                    </td>
-                    <td className="p-4 text-right space-x-1 whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenRestock(product)}
-                        className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
-                        title="Receive Stock (Restock)"
-                      >
-                        <PackagePlus className="w-3.5 h-3.5" />
-                        <span className="text-[11px] font-semibold hidden md:inline">Restock</span>
-                      </button>
+      {/* Filters & Search Bar */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+          />
+        </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(product)}
-                        className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
-                        title="Edit product details & pricing"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                        <span className="text-[11px] font-semibold hidden md:inline">Edit</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteProduct(product.id, product.name)}
-                        className="p-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1"
-                        title="Delete product"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan={9} className="p-8 text-center text-gray-400 text-sm">
-                  No products found. Add your first product above!
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {categories.length > 2 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  selectedCategory.toLowerCase() === cat.toLowerCase()
+                    ? "bg-blue-900 text-white shadow-2xs"
+                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
+                }`}
+              >
+                {cat === "ALL" ? "All Categories" : cat}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Add / Edit Product Modal */}
+      {/* Products Table */}
+      <div className="bg-white rounded-xl shadow-2xs border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-gray-500 font-semibold text-xs border-b border-gray-100">
+                <th className="p-3.5 pl-4">Product Name</th>
+                <th className="p-3.5">Category</th>
+                <th className="p-3.5">Current Stock</th>
+                <th className="p-3.5">Min Stock Alert</th>
+                <th className="p-3.5">Status</th>
+                {isAdmin && <th className="p-3.5 pr-4 text-right">Actions</th>}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-gray-400">
+                    <Package className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                    <p className="text-sm font-medium">No products found.</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredProducts.map((product: Product) => {
+                  const isLowStock = (product.currentStock ?? 0) <= (product.minStock ?? 50);
+                  return (
+                    <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-3.5 pl-4 font-bold text-gray-900">{product.name}</td>
+                      <td className="p-3.5 text-gray-600 uppercase text-xs font-semibold tracking-wider">{product.category}</td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isLowStock ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                          {product.currentStock ?? 0} {product.unit || 'kg'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-gray-500 text-xs">{product.minStock ?? 0} {product.unit || 'kg'}</td>
+                      <td className="p-3.5">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${product.status === 'Active' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {product.status || 'Active'}
+                        </span>
+                      </td>
+                      {isAdmin && (
+                        <td className="p-3.5 pr-4 text-right space-x-2">
+                          <button
+                            onClick={() => handleOpenModal(product)}
+                            className="p-1.5 bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded-lg transition-colors cursor-pointer"
+                            title="Edit Product"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="p-1.5 bg-gray-100 hover:bg-red-50 text-gray-600 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Product"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Add/Edit Product Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-blue-950 mb-4">
-              {editingProduct ? "Edit Product & Adjust Prices" : "Add New Product"}
-            </h2>
-            <form onSubmit={handleSaveProduct} className="space-y-3.5">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-4 bg-blue-950 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">{editingProduct ? "Edit Product" : "Add New Product"}</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-300 hover:text-white font-bold text-sm cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveProduct} className="p-5 space-y-4">
+              {error && (
+                <div className="p-2.5 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2 border border-red-200">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Product Name</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Product Name</label>
                 <input
                   type="text"
-                  name="name"
                   required
                   value={formData.name}
-                  onChange={handleInputChange}
-                  placeholder="e.g. AGO (Diesel) or PMS"
-                  className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-blue-600"
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="e.g. Cooking Gas 12.5kg"
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Category</label>
-                  {showNewCategoryInput ? (
-                    <input
-                      type="text"
-                      placeholder="Enter new category"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none"
-                    />
-                  ) : (
-                    <select
-                      name="category"
-                      value={formData.category}
-                      onChange={(e) => {
-                        if (e.target.value === "ADD_NEW") {
-                          setShowNewCategoryInput(true);
-                        } else {
-                          handleInputChange(e);
-                        }
-                      }}
-                      className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none bg-white font-medium"
-                    >
-                      <option value="">Select Category</option>
-                      <option value="Fuel">Fuel</option>
-                      <option value="LPG">LPG</option>
-                      <option value="Lubricants">Lubricants</option>
-                      <option value="General">General</option>
-                      <option value="ADD_NEW">+ Add New Category</option>
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Measurement Unit</label>
-                  <select
-                    name="unit"
-                    value={formData.unit}
-                    onChange={handleInputChange}
-                    className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none bg-white font-medium"
-                  >
-                    <option value="L">Liters (L)</option>
-                    <option value="KG">Kilograms (KG)</option>
-                    <option value="Pcs">Pieces (Pcs)</option>
-                    <option value="Drum">Drum</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Buying Price (₦)</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Category</label>
                   <input
-                    type="number"
-                    step="any"
-                    name="buyingPrice"
-                    value={formData.buyingPrice}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-blue-900 mb-1">Retail Price (₦)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    name="sellingPrice"
+                    type="text"
                     required
-                    value={formData.sellingPrice}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    className="w-full border border-blue-400 bg-blue-50/40 p-2.5 rounded-xl text-xs font-bold outline-none"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    placeholder="LPG / Fuel / Cylinder"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-amber-900 mb-1">Wholesale Price (₦)</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Unit</label>
                   <input
-                    type="number"
-                    step="any"
-                    name="wholesalePrice"
-                    value={formData.wholesalePrice}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    className="w-full border border-amber-400 bg-amber-50/40 p-2.5 rounded-xl text-xs font-bold outline-none"
+                    type="text"
+                    required
+                    value={formData.unit}
+                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                    placeholder="kg / L / pcs"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
               </div>
 
-              {!editingProduct && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Opening Stock</label>
-                    <input
-                      type="number"
-                      step="any"
-                      name="openingStock"
-                      value={formData.openingStock}
-                      onChange={handleInputChange}
-                      placeholder="e.g. 1000"
-                      className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Min Stock Alert</label>
-                    <input
-                      type="number"
-                      step="any"
-                      name="minStock"
-                      value={formData.minStock}
-                      onChange={handleInputChange}
-                      placeholder="e.g. 50"
-                      className="w-full border border-gray-300 p-2.5 rounded-xl text-xs outline-none"
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Current Stock</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={formData.currentStock}
+                    onChange={(e) => setFormData({ ...formData, currentStock: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  />
                 </div>
-              )}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Min Stock Alert</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={formData.minStock}
+                    onChange={(e) => setFormData({ ...formData, minStock: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-gray-100">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600 cursor-pointer"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold hover:bg-gray-100 cursor-pointer"
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="px-5 py-2 bg-blue-900 text-white rounded-xl text-xs font-bold hover:bg-blue-800 disabled:opacity-50 cursor-pointer shadow-sm"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
-                  {isLoading ? "Saving..." : editingProduct ? "Update Product" : "Save Product"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Receive Stock (Restock) Modal */}
-      {isRestockModalOpen && restockingProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl">
-            <h2 className="text-base font-bold text-blue-950 mb-1">Receive Stock</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              Adding stock to <strong className="text-gray-800">{restockingProduct.name}</strong> (Current: {restockingProduct.currentStock ?? restockingProduct.openingStock ?? 0} {restockingProduct.unit || 'L'})
-            </p>
-
-            <form onSubmit={handleReceiveStock} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Quantity to Receive ({restockingProduct.unit || 'L'})</label>
-                <input
-                  type="number"
-                  step="any"
-                  required
-                  autoFocus
-                  value={restockQty}
-                  onChange={(e) => setRestockQty(e.target.value)}
-                  placeholder="e.g. 5000"
-                  className="w-full border border-gray-300 p-2.5 rounded-xl text-sm font-bold text-blue-950 outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsRestockModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-xl text-xs font-semibold hover:bg-gray-100 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="px-5 py-2 bg-emerald-700 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 disabled:opacity-50 cursor-pointer shadow-sm"
-                >
-                  {isLoading ? "Processing..." : "Confirm Restock"}
+                  {isSubmitting ? "Saving..." : "Save Product"}
                 </button>
               </div>
             </form>
