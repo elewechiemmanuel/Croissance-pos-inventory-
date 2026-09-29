@@ -18,13 +18,15 @@ export default function Products() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form state
+  // Form state including retail and wholesale prices
   const [formData, setFormData] = useState({
     name: "",
     category: "LPG",
     currentStock: 0,
     minStock: 100,
     unit: "kg",
+    retailPrice: 0,
+    wholesalePrice: 0,
     status: "Active"
   });
 
@@ -55,6 +57,8 @@ export default function Products() {
         currentStock: product.currentStock ?? 0,
         minStock: product.minStock ?? 100,
         unit: product.unit || "kg",
+        retailPrice: product.retailPrice ?? 0,
+        wholesalePrice: product.wholesalePrice ?? 0,
         status: product.status || "Active"
       });
     } else {
@@ -65,6 +69,8 @@ export default function Products() {
         currentStock: 0,
         minStock: 100,
         unit: "kg",
+        retailPrice: 0,
+        wholesalePrice: 0,
         status: "Active"
       });
     }
@@ -171,8 +177,9 @@ export default function Products() {
               <tr className="bg-gray-50 text-gray-500 font-semibold text-xs border-b border-gray-100">
                 <th className="p-3.5 pl-4">Product Name</th>
                 <th className="p-3.5">Category</th>
+                <th className="p-3.5">Retail Price</th>
+                <th className="p-3.5">Wholesale Price</th>
                 <th className="p-3.5">Current Stock</th>
-                <th className="p-3.5">Min Stock Alert</th>
                 <th className="p-3.5">Status</th>
                 {isAdmin && <th className="p-3.5 pr-4 text-right">Actions</th>}
               </tr>
@@ -180,7 +187,7 @@ export default function Products() {
             <tbody className="divide-y divide-gray-100">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-gray-400">
+                  <td colSpan={isAdmin ? 7 : 6} className="text-center py-12 text-gray-400">
                     <Package className="w-10 h-10 mx-auto mb-2 opacity-20" />
                     <p className="text-sm font-medium">No products found.</p>
                   </td>
@@ -192,12 +199,13 @@ export default function Products() {
                     <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="p-3.5 pl-4 font-bold text-gray-900">{product.name}</td>
                       <td className="p-3.5 text-gray-600 uppercase text-xs font-semibold tracking-wider">{product.category}</td>
+                      <td className="p-3.5 font-medium text-gray-800">{formatCurrency(product.retailPrice ?? 0)}</td>
+                      <td className="p-3.5 font-medium text-gray-800">{formatCurrency(product.wholesalePrice ?? 0)}</td>
                       <td className="p-3.5">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${isLowStock ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
                           {product.currentStock ?? 0} {product.unit || 'kg'}
                         </span>
                       </td>
-                      <td className="p-3.5 text-gray-500 text-xs">{product.minStock ?? 0} {product.unit || 'kg'}</td>
                       <td className="p-3.5">
                         <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${product.status === 'Active' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
                           {product.status || 'Active'}
@@ -279,6 +287,32 @@ export default function Products() {
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     placeholder="kg / L / pcs"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+
+              {/* Pricing Fields */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Retail Price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={formData.retailPrice}
+                    onChange={(e) => setFormData({ ...formData, retailPrice: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Wholesale Price</label>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={formData.wholesalePrice}
+                    onChange={(e) => setFormData({ ...formData, wholesalePrice: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
                   />
                 </div>
