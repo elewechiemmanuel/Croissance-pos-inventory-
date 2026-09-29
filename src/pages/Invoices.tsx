@@ -116,6 +116,27 @@ const getDateValue = (value: unknown): string => {
   return "";
 };
 
+// Helper function to format date and time together
+const formatDateTime = (value: unknown): string => {
+  const dateStr = getDateValue(value);
+  if (!dateStr) return "N/A";
+  
+  const dateObj = new Date(dateStr);
+  if (isNaN(dateObj.getTime())) {
+    // Fallback to original formatDate utility if parsing fails
+    return formatDate(dateStr);
+  }
+
+  return dateObj.toLocaleString("en-NG", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 export default function Invoices() {
   const contextData = useContext(DataContext);
 
@@ -322,7 +343,7 @@ export default function Invoices() {
       // Map sales data to clean rows for Excel
       const excelData = filteredInvoices.map((sale, index) => {
         const status = normalizeStatus(sale.paymentStatus);
-        const formattedDate = sale.date ? formatDate(getDateValue(sale.date)) : "N/A";
+        const formattedDate = sale.date ? formatDateTime(sale.date) : "N/A";
         
         const itemsSummary = (sale.items || [])
           .map((item) => `${item.quantity}x ${item.productName}`)
@@ -331,7 +352,7 @@ export default function Invoices() {
         return {
           "S/N": index + 1,
           "Invoice Number": sale.invoiceNumber || "N/A",
-          "Date": formattedDate,
+          "Date & Time": formattedDate,
           "Customer Name": sale.customerName || "Walk-in Customer",
           "Customer Phone": sale.customerPhone || "N/A",
           "Items Purchased": itemsSummary,
@@ -349,7 +370,7 @@ export default function Invoices() {
       const columnWidths = [
         { wch: 6 },  // S/N
         { wch: 18 }, // Invoice Number
-        { wch: 15 }, // Date
+        { wch: 22 }, // Date & Time
         { wch: 22 }, // Customer Name
         { wch: 15 }, // Customer Phone
         { wch: 35 }, // Items Purchased
@@ -608,7 +629,7 @@ export default function Invoices() {
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
               <tr>
                 <th className="px-5 py-3.5">Invoice #</th>
-                <th className="px-5 py-3.5">Date</th>
+                <th className="px-5 py-3.5">Date &amp; Time</th>
                 <th className="px-5 py-3.5">Customer</th>
                 <th className="px-5 py-3.5">Items</th>
                 <th className="px-5 py-3.5">Payment</th>
@@ -638,7 +659,7 @@ export default function Invoices() {
                     </td>
 
                     <td className="px-5 py-4 text-xs text-gray-500">
-                      {sale.date ? formatDate(getDateValue(sale.date)) : "N/A"}
+                      {sale.date ? formatDateTime(sale.date) : "N/A"}
                     </td>
 
                     <td className="px-5 py-4 font-medium text-gray-800">
