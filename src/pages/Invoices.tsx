@@ -13,6 +13,7 @@ import InvoiceModal from "../components/InvoiceModal";
 import Receipt from "../components/Receipt";
 import WaybillModal from "../components/WaybillModal";
 import { db } from "../firebase";
+import * as XLSX from "xlsx";
 
 import {
   collection,
@@ -37,6 +38,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import { Link } from "react-router-dom";
@@ -162,40 +164,11 @@ export default function Invoices() {
 
       const constraints: QueryConstraint[] = [];
 
-      /*
-       * Status filter.
-       *
-       * We handle "Completed" and "Paid" together on the client
-       * because older records may use either value.
-       */
-      if (statusFilter === "Paid") {
-        // Do not add Firestore status filtering here.
-        // This allows both "Paid" and legacy "Completed" records.
-      }
-
-      if (statusFilter === "Pending") {
-        // Also handled client-side so "Pending", "Part-Paid"
-        // and "Unpaid" can all be displayed consistently.
-      }
-
-      /*
-       * Date filtering.
-       *
-       * Dates are stored as strings in the current Sale structure.
-       * We use YYYY-MM-DD boundaries.
-       */
       if (startDate) {
         constraints.push(where("date", ">=", startDate));
       }
 
       if (endDate) {
-        /*
-         * Because Firestore values may contain timestamps such as:
-         * 2026-09-25T14:30:00
-         *
-         * using "endDate + \uf8ff" includes the entire selected day
-         * when the date is stored as a string.
-         */
         constraints.push(
           where("date", "<=", `${endDate}\uf8ff`)
         );
@@ -236,7 +209,7 @@ export default function Invoices() {
     } finally {
       setIsLoading(false);
     }
-  }, [startDate, endDate, statusFilter]);
+  }, [startDate, endDate]);
 
   useEffect(() => {
     fetchFirebaseInvoices();
@@ -249,13 +222,11 @@ export default function Invoices() {
     const term = searchTerm.trim().toLowerCase();
 
     return allMatchingInvoices.filter((sale) => {
-      const normalizedStatus = normalizeStatus(
-        sale.paymentStatus
-      );
+      const normalized = normalizeStatus(sale.paymentStatus);
 
       const matchesStatus =
         statusFilter === "ALL" ||
-        normalizedStatus === statusFilter;
+        normalized === statusFilter;
 
       if (!matchesStatus) {
         return false;
@@ -332,15 +303,77 @@ export default function Invoices() {
     );
   }, [filteredInvoices, currentPage]);
 
-  /**
-   * Make sure current page remains valid if filters reduce
-   * the number of pages.
-   */
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
   }, [currentPage, totalPages]);
+
+  /**
+   * Export Filtered Transactions to Excel
+   */
+  const handleExportToExcel = () => {
+    if (filteredInvoices.length === 0) {
+      window.alert("No transactions available to export based on current filters.");
+      return;
+    }
+
+    try {
+      // Map sales data to clean rows for Excel
+      const excelData = filteredInvoices.map((sale, index) => {
+        const status = normalizeStatus(sale.paymentStatus);
+        const formattedDate = sale.date ? formatDate(getDateValue(sale.date)) : "N/A";
+        
+        const itemsSummary = (sale.items || [])
+          .map((item) => `${item.quantity}x ${item.productName}`)
+          .join(", ");
+
+        return {
+          "S/N": index + 1,
+          "Invoice Number": sale.invoiceNumber || "N/A",
+          "Date": formattedDate,
+          "Customer Name": sale.customerName || "Walk-in Customer",
+          "Customer Phone": sale.customerPhone || "N/A",
+          "Items Purchased": itemsSummary,
+          "Payment Method": sale.paymentMethod || "Cash",
+          "Payment Status": status,
+          "Total Amount (NGN)": Number(sale.totalAmount ?? 0),
+          "Attendant / Staff": sale.staffName || "N/A",
+        };
+      });
+
+      // Create worksheet and workbook
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      
+      // Auto-fit column widths for readability
+      const columnWidths = [
+        { wch: 6 },  // S/N
+        { wch: 18 }, // Invoice Number
+        { wch: 15 }, // Date
+        { wch: 22 }, // Customer Name
+        { wch: 15 }, // Customer Phone
+        { wch: 35 }, // Items Purchased
+        { wch: 15 }, // Payment Method
+        { wch: 15 }, // Payment Status
+        { wch: 20 }, // Total Amount
+        { wch: 18 }, // Attendant
+      ];
+      worksheet["!cols"] = columnWidths;
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Transaction History");
+
+      // Generate file name with current date/filters timestamp
+      const dateStr = new Date().toISOString().split("T")[0];
+      const fileName = `Transaction_History_${statusFilter}_${dateStr}.xlsx`;
+
+      // Trigger download
+      XLSX.writeFile(workbook, fileName);
+    } catch (error) {
+      console.error("Failed to export Excel file:", error);
+      window.alert("An error occurred while generating the Excel sheet. Please try again.");
+    }
+  };
 
   /**
    * Download invoice PDF.
@@ -364,16 +397,9 @@ export default function Invoices() {
         setDownloadingId(null);
       }, 1500);
     } catch (error) {
-      console.error(
-        "Failed to download invoice PDF:",
-        error
-      );
-
+      console.error("Failed to download invoice PDF:", error);
       setDownloadingId(null);
-
-      window.alert(
-        "Unable to download the invoice PDF. Please try again."
-      );
+      window.alert("Unable to download the invoice PDF. Please try again.");
     }
   };
 
@@ -389,20 +415,11 @@ export default function Invoices() {
     try {
       await printInvoice(sale, settings);
     } catch (error) {
-      console.error(
-        "Failed to print invoice:",
-        error
-      );
-
-      window.alert(
-        "Unable to print the invoice. Please try again."
-      );
+      console.error("Failed to print invoice:", error);
+      window.alert("Unable to print the invoice. Please try again.");
     }
   };
 
-  /**
-   * Validate date range.
-   */
   const dateRangeIsInvalid =
     Boolean(startDate && endDate && startDate > endDate);
 
@@ -422,13 +439,27 @@ export default function Invoices() {
           </p>
         </div>
 
-        <Link
-          to="/pos"
-          className="inline-flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <span>Create New Sale / Invoice</span>
-          <ArrowUpRight className="w-4 h-4" />
-        </Link>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          {/* Export to Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportToExcel}
+            disabled={totalInvoicesCount === 0 || isLoading}
+            className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export current filter results to Excel"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export to Excel</span>
+          </button>
+
+          <Link
+            to="/pos"
+            className="inline-flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm transition-colors cursor-pointer"
+          >
+            <span>Create New Sale / Invoice</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -437,11 +468,9 @@ export default function Invoices() {
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Total Invoices
           </p>
-
           <p className="text-2xl font-bold text-blue-900 mt-1">
             {totalInvoicesCount}
           </p>
-
           <p className="text-xs text-gray-400 mt-0.5">
             Matching current filters
           </p>
@@ -451,11 +480,9 @@ export default function Invoices() {
           <p className="text-xs font-semibold text-blue-900 uppercase tracking-wider">
             Total Invoiced Volume
           </p>
-
           <p className="text-2xl font-bold text-blue-700 mt-1">
             {formatNaira(totalInvoicedVolume)}
           </p>
-
           <p className="text-xs text-blue-600/80 mt-0.5">
             Commercial value generated
           </p>
@@ -465,11 +492,9 @@ export default function Invoices() {
           <p className="text-xs font-semibold text-green-900 uppercase tracking-wider">
             Completed / Settled
           </p>
-
           <p className="text-2xl font-bold text-emerald-700 mt-1">
             {completedCount}
           </p>
-
           <p className="text-xs text-emerald-600/80 mt-0.5">
             Fully paid &amp; reconciled
           </p>
@@ -482,45 +507,33 @@ export default function Invoices() {
           {/* Search */}
           <div className="relative flex-1 max-w-md">
             <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-
             <input
               type="text"
               placeholder="Search by Invoice #, Customer, Phone, Attendant..."
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {/* Status Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">
-              Status:
-            </span>
-
+            <span className="text-xs text-gray-500 font-medium">Status:</span>
             <div className="flex bg-gray-100 p-0.5 rounded-lg text-xs font-semibold">
-              {(["ALL", "Paid", "Pending"] as StatusFilter[]).map(
-                (status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter(status);
-                    }}
-                    className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
-                      statusFilter === status
-                        ? "bg-white text-blue-900 shadow-sm font-bold"
-                        : "text-gray-600 hover:text-gray-900"
-                    }`}
-                  >
-                    {status === "ALL"
-                      ? "All Invoices"
-                      : status}
-                  </button>
-                )
-              )}
+              {(["ALL", "Paid", "Pending"] as StatusFilter[]).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
+                    statusFilter === status
+                      ? "bg-white text-blue-900 shadow-sm font-bold"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {status === "ALL" ? "All Invoices" : status}
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -529,33 +542,22 @@ export default function Invoices() {
         <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 text-xs">
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-400" />
-
-            <span className="text-gray-500 font-medium">
-              From:
-            </span>
-
+            <span className="text-gray-500 font-medium">From:</span>
             <input
               type="date"
               value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-              }}
+              onChange={(e) => setStartDate(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-gray-500 font-medium">
-              To:
-            </span>
-
+            <span className="text-gray-500 font-medium">To:</span>
             <input
               type="date"
               value={endDate}
               min={startDate || undefined}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-              }}
+              onChange={(e) => setEndDate(e.target.value)}
               className="bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -576,8 +578,7 @@ export default function Invoices() {
 
         {dateRangeIsInvalid && (
           <p className="text-xs text-red-600 font-medium">
-            The end date cannot be earlier than the start
-            date.
+            The end date cannot be earlier than the start date.
           </p>
         )}
       </div>
@@ -595,7 +596,6 @@ export default function Invoices() {
           <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-10">
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="w-8 h-8 text-blue-700 animate-spin" />
-
               <span className="text-xs font-medium text-gray-500">
                 Loading invoices...
               </span>
@@ -607,79 +607,42 @@ export default function Invoices() {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
               <tr>
-                <th className="px-5 py-3.5">
-                  Invoice #
-                </th>
-
-                <th className="px-5 py-3.5">
-                  Date
-                </th>
-
-                <th className="px-5 py-3.5">
-                  Customer
-                </th>
-
-                <th className="px-5 py-3.5">
-                  Items
-                </th>
-
-                <th className="px-5 py-3.5">
-                  Payment
-                </th>
-
-                <th className="px-5 py-3.5 text-right">
-                  Total Amount
-                </th>
-
-                <th className="px-5 py-3.5 text-center">
-                  Actions
-                </th>
+                <th className="px-5 py-3.5">Invoice #</th>
+                <th className="px-5 py-3.5">Date</th>
+                <th className="px-5 py-3.5">Customer</th>
+                <th className="px-5 py-3.5">Items</th>
+                <th className="px-5 py-3.5">Payment</th>
+                <th className="px-5 py-3.5 text-right">Total Amount</th>
+                <th className="px-5 py-3.5 text-center">Actions</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-gray-100">
               {paginatedInvoices.map((sale) => {
-                const status = normalizeStatus(
-                  sale.paymentStatus
-                );
+                const status = normalizeStatus(sale.paymentStatus);
 
                 return (
                   <tr
                     key={sale.id}
                     className="hover:bg-blue-50/30 transition-colors"
                   >
-                    {/* Invoice Number */}
                     <td className="px-5 py-4 font-bold text-blue-900">
                       <button
                         type="button"
-                        onClick={() =>
-                          setSelectedSaleForInvoice(sale)
-                        }
+                        onClick={() => setSelectedSaleForInvoice(sale)}
                         className="hover:underline flex items-center gap-1.5 cursor-pointer"
                       >
                         <FileText className="w-3.5 h-3.5 text-amber-500" />
-
-                        {sale.invoiceNumber ||
-                          "N/A"}
+                        {sale.invoiceNumber || "N/A"}
                       </button>
                     </td>
 
-                    {/* Date */}
                     <td className="px-5 py-4 text-xs text-gray-500">
-                      {sale.date
-                        ? formatDate(
-                            getDateValue(sale.date)
-                          )
-                        : "N/A"}
+                      {sale.date ? formatDate(getDateValue(sale.date)) : "N/A"}
                     </td>
 
-                    {/* Customer */}
                     <td className="px-5 py-4 font-medium text-gray-800">
-                      <div>
-                        {sale.customerName ||
-                          "Walk-in Customer"}
-                      </div>
-
+                      <div>{sale.customerName || "Walk-in Customer"}</div>
                       {sale.customerPhone && (
                         <div className="text-[11px] text-gray-400">
                           {sale.customerPhone}
@@ -687,34 +650,22 @@ export default function Invoices() {
                       )}
                     </td>
 
-                    {/* Items */}
                     <td className="px-5 py-4 text-xs text-gray-600">
                       <div>
-                        {sale.items?.length || 0}{" "}
-                        item
-                        {(sale.items?.length || 0) !==
-                        1
-                          ? "s"
-                          : ""}
+                        {sale.items?.length || 0} item
+                        {(sale.items?.length || 0) !== 1 ? "s" : ""}
                       </div>
-
                       <span className="text-gray-400 block text-[11px] truncate max-w-[180px]">
                         {(sale.items || [])
-                          .map(
-                            (item) =>
-                              `${item.quantity}x ${item.productName}`
-                          )
+                          .map((item) => `${item.quantity}x ${item.productName}`)
                           .join(", ")}
                       </span>
                     </td>
 
-                    {/* Payment */}
                     <td className="px-5 py-4">
                       <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700 uppercase">
-                        {sale.paymentMethod ||
-                          "Cash"}
+                        {sale.paymentMethod || "Cash"}
                       </span>
-
                       <span
                         className={`ml-1.5 px-2 py-0.5 rounded text-[11px] font-bold ${
                           status === "Paid"
@@ -726,96 +677,58 @@ export default function Invoices() {
                       </span>
                     </td>
 
-                    {/* Amount */}
                     <td className="px-5 py-4 text-right font-bold text-base text-blue-950">
-                      {formatNaira(
-                        sale.totalAmount
-                      )}
+                      {formatNaira(sale.totalAmount)}
                     </td>
 
-                    {/* Actions */}
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* Download */}
                         <button
                           type="button"
-                          onClick={(e) =>
-                            handleQuickDownload(
-                              sale,
-                              e
-                            )
-                          }
-                          disabled={
-                            downloadingId !== null
-                          }
+                          onClick={(e) => handleQuickDownload(sale, e)}
+                          disabled={downloadingId !== null}
                           className="p-1.5 text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Download Invoice PDF"
                         >
-                          {downloadingId ===
-                          sale.id ? (
+                          {downloadingId === sale.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
                             <Download className="w-4 h-4" />
                           )}
                         </button>
 
-                        {/* Print */}
                         <button
                           type="button"
-                          onClick={(e) =>
-                            handleQuickPrint(
-                              sale,
-                              e
-                            )
-                          }
+                          onClick={(e) => handleQuickPrint(sale, e)}
                           className="p-1.5 text-gray-600 hover:text-blue-900 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                           title="Print A4 Invoice"
                         >
                           <Printer className="w-4 h-4" />
                         </button>
 
-                        {/* View Invoice */}
                         <button
                           type="button"
-                          onClick={() =>
-                            setSelectedSaleForInvoice(
-                              sale
-                            )
-                          }
+                          onClick={() => setSelectedSaleForInvoice(sale)}
                           className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
                           title="View Full Invoice"
                         >
                           <Eye className="w-3.5 h-3.5" />
-
                           <span>View</span>
                         </button>
 
-                        {/* Waybill */}
                         <button
                           type="button"
-                          onClick={() =>
-                            setSelectedSaleForWaybill(
-                              sale
-                            )
-                          }
+                          onClick={() => setSelectedSaleForWaybill(sale)}
                           className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-medium transition-colors cursor-pointer flex items-center gap-1"
                           title="Generate / View Waybill"
                         >
                           <Truck className="w-3.5 h-3.5" />
-
-                          <span className="hidden lg:inline">
-                            Waybill
-                          </span>
+                          <span className="hidden lg:inline">Waybill</span>
                         </button>
 
-                        {/* Receipt */}
                         <button
                           type="button"
-                          onClick={() =>
-                            setSelectedSaleForReceipt(
-                              sale
-                            )
-                          }
+                          onClick={() => setSelectedSaleForReceipt(sale)}
                           className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
                           title="Print / View Thermal Receipt"
                         >
@@ -827,26 +740,19 @@ export default function Invoices() {
                 );
               })}
 
-              {!isLoading &&
-                paginatedInvoices.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-5 py-12 text-center text-gray-400"
-                    >
-                      <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
-
-                      <p className="font-semibold text-gray-600 text-base">
-                        No Invoices Found
-                      </p>
-
-                      <p className="text-xs text-gray-400 mt-1">
-                        Try adjusting your search
-                        criteria or date filters.
-                      </p>
-                    </td>
-                  </tr>
-                )}
+              {!isLoading && paginatedInvoices.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-gray-400">
+                    <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="font-semibold text-gray-600 text-base">
+                      No Invoices Found
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Try adjusting your search criteria or date filters.
+                    </p>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -857,35 +763,21 @@ export default function Invoices() {
             <div>
               Showing{" "}
               <span className="font-semibold">
-                {(currentPage - 1) *
-                    ITEMS_PER_PAGE +
-                  1}
+                {(currentPage - 1) * ITEMS_PER_PAGE + 1}
               </span>{" "}
               to{" "}
               <span className="font-semibold">
-                {Math.min(
-                  currentPage * ITEMS_PER_PAGE,
-                  totalInvoicesCount
-                )}
+                {Math.min(currentPage * ITEMS_PER_PAGE, totalInvoicesCount)}
               </span>{" "}
-              of{" "}
-              <span className="font-semibold">
-                {totalInvoicesCount}
-              </span>{" "}
+              of <span className="font-semibold">{totalInvoicesCount}</span>{" "}
               entries
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setCurrentPage((page) =>
-                    Math.max(page - 1, 1)
-                  )
-                }
-                disabled={
-                  currentPage === 1 || isLoading
-                }
+                onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+                disabled={currentPage === 1 || isLoading}
                 className="p-1.5 bg-white border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
                 title="Previous page"
               >
@@ -893,24 +785,15 @@ export default function Invoices() {
               </button>
 
               <span className="font-medium text-gray-700">
-                Page {currentPage} of{" "}
-                {totalPages}
+                Page {currentPage} of {totalPages}
               </span>
 
               <button
                 type="button"
                 onClick={() =>
-                  setCurrentPage((page) =>
-                    Math.min(
-                      page + 1,
-                      totalPages
-                    )
-                  )
+                  setCurrentPage((page) => Math.min(page + 1, totalPages))
                 }
-                disabled={
-                  currentPage === totalPages ||
-                  isLoading
-                }
+                disabled={currentPage === totalPages || isLoading}
                 className="p-1.5 bg-white border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors cursor-pointer disabled:cursor-not-allowed"
                 title="Next page"
               >
@@ -926,9 +809,7 @@ export default function Invoices() {
         <InvoiceModal
           sale={selectedSaleForInvoice}
           settings={settings}
-          onClose={() =>
-            setSelectedSaleForInvoice(null)
-          }
+          onClose={() => setSelectedSaleForInvoice(null)}
         />
       )}
 
@@ -937,9 +818,7 @@ export default function Invoices() {
         <Receipt
           sale={selectedSaleForReceipt}
           settings={settings}
-          onClose={() =>
-            setSelectedSaleForReceipt(null)
-          }
+          onClose={() => setSelectedSaleForReceipt(null)}
         />
       )}
 
@@ -948,9 +827,7 @@ export default function Invoices() {
         <WaybillModal
           sale={selectedSaleForWaybill}
           settings={settings}
-          onClose={() =>
-            setSelectedSaleForWaybill(null)
-          }
+          onClose={() => setSelectedSaleForWaybill(null)}
         />
       )}
     </div>
