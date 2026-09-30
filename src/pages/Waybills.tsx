@@ -1,700 +1,670 @@
-import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, query, orderBy, onSnapshot, deleteDoc, doc, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
-import { Waybill, Customer, Product } from '../types';
-import { FileText, Search, Printer, Trash2, Building2, User, Eye, CheckCircle2, PlusCircle, X, Truck, Package, MapPin, Landmark, ClipboardCheck } from 'lucide-react';
-import { formatCurrency, formatDate } from '../lib/utils';
-import WaybillModal from '../components/WaybillModal';
+import React, { useState, useContext, useMemo } from "react";
+import { DataContext } from "../components/Layout";
+import { Sale, WaybillData, Customer, Product, SaleItem } from "../types";
+import { formatDate, formatCurrency } from "../lib/utils";
+import { downloadWaybillPdf, printWaybill } from "../lib/waybillGenerator";
+import WaybillModal from "../components/WaybillModal";
+import InvoiceModal from "../components/InvoiceModal";
+import { 
+  Truck, 
+  Search, 
+  Download, 
+  Printer, 
+  Eye, 
+  Check, 
+  FileText, 
+  MapPin, 
+  Plus,
+  Trash2,
+  Building2,
+  ArrowUpRight
+} from "lucide-react";
+import { Link } from "react-router-dom";
 
 export default function Waybills() {
-  const [activeTab, setActiveTab] = useState<'waybills' | 'deliveryNotes'>('waybills');
-  const [waybills, setWaybills] = useState<Waybill[]>([]);
-  const [deliveryNotes, setDeliveryNotes] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [posProducts, setPosProducts] = useState<Product[]>([]);
-  
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedWaybill, setSelectedWaybill] = useState<Waybill | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { sales = [], customers = [], products = [], settings, apiCall, refreshData } = useContext(DataContext) as any;
 
-  // Selected items cart for Waybill / Delivery Note creation
-  const [selectedItems, setSelectedItems] = useState<{ id: string; name: string; quantity: number; price?: number }[]>([]);
-  const [productSearch, setProductSearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedSaleForWaybill, setSelectedSaleForWaybill] = useState<Sale | null>(null);
+  const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState<Sale | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  // Form state for generating a waybill
-  const [formData, setFormData] = useState({
-    waybillNumber: `WB-${Date.now().toString().slice(-6)}`,
-    customerName: '',
-    destination: '',
-    deliveryAddress: '',
-    vehicleNumber: '',
-    driverName: '',
-    driverPhone: '',
-    notes: '',
-  });
+  // New Dispatch Creation State
+  const [isCreatingWaybill, setIsCreatingWaybill] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
+  const [waybillItems, setWaybillItems] = useState<{ productId: string; productName: string; quantity: number; unitPrice: number; unit: string; total: number }[]>([]);
+  const [vehicleNumber, setVehicleNumber] = useState("");
+  const [driverName, setDriverName] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  // Form state for generating a formal structured Delivery Note
-  const [noteData, setNoteData] = useState({
-    noteNumber: `DN-${Date.now().toString().slice(-6)}`,
-    customerName: '',
-    recipientName: '',
-    deliveryAddress: '',
-    orderReference: '',
-    packagesCount: '1',
-    receiverSignaturePlaceholder: 'Received in Good Condition / Goods Received Note',
-  });
-
-  // Fetch collections from Firestore
-  useEffect(() => {
-    const qWaybills = query(collection(db, 'waybills'), orderBy('createdAt', 'desc'));
-    const unsubscribeWaybills = onSnapshot(qWaybills, (snapshot) => {
-      const fetched = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<Waybill, 'id'>)
-      }));
-      setWaybills(fetched);
+  // Filter sales
+  const waybillsList = useMemo(() => {
+    return (sales as Sale[]).filter((sale) => {
+      const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+      const search = searchTerm.toLowerCase();
+      return (
+        !searchTerm ||
+        waybillNum.toLowerCase().includes(search) ||
+        sale.invoiceNumber.toLowerCase().includes(search) ||
+        sale.customerName.toLowerCase().includes(search) ||
+        (sale.vehicleNumber && sale.vehicleNumber.toLowerCase().includes(search)) ||
+        (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
+        (sale.deliveryAddress && sale.deliveryAddress.toLowerCase().includes(search))
+      );
     });
+  }, [sales, searchTerm]);
 
-    const qDeliveryNotes = query(collection(db, 'deliveryNotes'), orderBy('createdAt', 'desc'));
-    const unsubscribeNotes = onSnapshot(qDeliveryNotes, (snapshot) => {
-      const fetchedNotes = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...docSnap.data()
-      }));
-      setDeliveryNotes(fetchedNotes);
+  const totalUnitsDispatched = useMemo(() => {
+    return waybillsList.reduce((sum, s) => {
+      const saleUnits = s.items.reduce((iSum, item) => iSum + (item.quantity || 0), 0);
+      return sum + saleUnits;
+    }, 0);
+  }, [waybillsList]);
+
+  // Add product to custom waybill builder
+  const handleAddProductRow = (productId: string) => {
+    const prod = products.find((p: Product) => p.id === productId);
+    if (!prod) return;
+
+    const isWholesale = selectedCustomer?.type === "Wholesale";
+    const unitPrice = isWholesale ? (prod.wholesalePrice || prod.sellingPrice || 0) : (prod.sellingPrice || prod.retailPrice || 0);
+
+    setWaybillItems(prev => {
+      const existingIndex = prev.findIndex(item => item.productId === productId);
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        const current = updated[existingIndex];
+        const newQty = current.quantity + 1;
+        updated[existingIndex] = {
+          ...current,
+          quantity: newQty,
+          total: newQty * current.unitPrice
+        };
+        return updated;
+      }
+      return [...prev, {
+        productId: prod.id,
+        productName: prod.name,
+        quantity: 1,
+        unitPrice,
+        unit: prod.unit || "L",
+        total: unitPrice
+      }];
     });
+  };
 
-    const qCustomers = query(collection(db, 'customers'));
-    const unsubscribeCustomers = onSnapshot(qCustomers, (snapshot) => {
-      const fetchedCust = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<Customer, 'id'>)
-      }));
-      setCustomers(fetchedCust);
+  const handleUpdateItemQty = (index: number, qtyStr: string) => {
+    const qty = parseFloat(qtyStr) || 0;
+    setWaybillItems(prev => {
+      const updated = [...prev];
+      const item = updated[index];
+      updated[index] = {
+        ...item,
+        quantity: qty,
+        total: qty * item.unitPrice
+      };
+      return updated;
     });
+  };
 
-    // Fetch POS products/inventory
-    const qProducts = query(collection(db, 'products'));
-    const unsubscribeProducts = onSnapshot(qProducts, (snapshot) => {
-      const fetchedProducts = snapshot.docs.map(docSnap => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<Product, 'id'>)
-      }));
-      setPosProducts(fetchedProducts);
-    });
+  const handleRemoveItemRow = (index: number) => {
+    setWaybillItems(prev => prev.filter((_, i) => i !== index));
+  };
 
-    return () => {
-      unsubscribeWaybills();
-      unsubscribeNotes();
-      unsubscribeCustomers();
-      unsubscribeProducts();
+  const calculatedSubtotal = useMemo(() => {
+    return waybillItems.reduce((sum, item) => sum + item.total, 0);
+  }, [waybillItems]);
+
+  const handleSaveCustomWaybill = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCustomer) {
+      setFormError("Please select a customer for this waybill.");
+      return;
+    }
+    if (waybillItems.length === 0) {
+      setFormError("Please add at least one product item.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError("");
+
+    try {
+      const invoiceNumber = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
+      const waybillNumber = `WB-${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const newSalePayload = {
+        invoiceNumber,
+        waybillNumber,
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.fullName,
+        customerPhone: selectedCustomer.phone || "",
+        deliveryAddress: deliveryAddress || selectedCustomer.address || "Customer Location",
+        vehicleNumber: vehicleNumber || "PENDING VEHICLE",
+        driverName: driverName || "PENDING DRIVER",
+        driverPhone: driverPhone || "",
+        items: waybillItems,
+        subtotal: calculatedSubtotal,
+        discount: 0,
+        totalAmount: calculatedSubtotal,
+        paymentMethod: "Bank Transfer",
+        paymentStatus: "Pending",
+        deliveryNotes: "Goods Received in Good Condition & Proper Order. Inspect all seals upon delivery.",
+        date: new Date().toISOString()
+      };
+
+      if (apiCall) {
+        await apiCall("addSale", newSalePayload);
+        if (refreshData) await refreshData();
+      }
+
+      setIsCreatingWaybill(false);
+      setWaybillItems([]);
+      setVehicleNumber("");
+      setDriverName("");
+      setDriverPhone("");
+      setDeliveryAddress("");
+    } catch (err: any) {
+      setFormError(err.message || "Failed to create waybill.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickDownload = (sale: Sale, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloadingId(sale.id);
+    const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+    const waybillData: WaybillData = {
+      waybillNumber: waybillNum,
+      invoiceNumber: sale.invoiceNumber,
+      date: sale.date,
+      deliveryDate: new Date().toISOString(),
+      customerId: sale.customerId,
+      customerName: sale.customerName || "Valued Customer",
+      customerPhone: sale.customerPhone,
+      deliveryAddress: sale.deliveryAddress || sale.customerAddress || "Station Pickup / Customer Delivery Point",
+      dispatchStation: settings.stationAddress || settings.businessName,
+      staffName: sale.staffName || "Station Attendant",
+      vehicleNumber: sale.vehicleNumber || "NOT SPECIFIED",
+      driverName: sale.driverName || "Designated Transporter",
+      driverPhone: sale.driverPhone || "N/A",
+      items: sale.items.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unit: item.unit || "Unit",
+        remarks: "Goods Received in Good Condition"
+      })),
+      deliveryNotes: sale.deliveryNotes || "Goods Received in Good Condition & Proper Order. Ensure vehicle tank/seals are verified prior to discharge."
     };
-  }, []);
 
-  const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedName = e.target.value;
-    const matchedCustomer = customers.find(c => c.name === selectedName);
-
-    setFormData(prev => ({
-      ...prev,
-      customerName: selectedName,
-      destination: matchedCustomer?.address || matchedCustomer?.city || prev.destination,
-      deliveryAddress: matchedCustomer?.address || prev.deliveryAddress,
-    }));
+    downloadWaybillPdf(waybillData, settings);
+    setTimeout(() => setDownloadingId(null), 2500);
   };
 
-  const handleNoteCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedName = e.target.value;
-    const matchedCustomer = customers.find(c => c.name === selectedName);
-
-    setNoteData(prev => ({
-      ...prev,
-      customerName: selectedName,
-      deliveryAddress: matchedCustomer?.address || prev.deliveryAddress,
-    }));
+  const handleQuickPrint = async (sale: Sale, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+    const waybillData: WaybillData = {
+      waybillNumber: waybillNum,
+      invoiceNumber: sale.invoiceNumber,
+      date: sale.date,
+      deliveryDate: new Date().toISOString(),
+      customerId: sale.customerId,
+      customerName: sale.customerName || "Valued Customer",
+      customerPhone: sale.customerPhone,
+      deliveryAddress: sale.deliveryAddress || sale.customerAddress || "Station Pickup / Customer Delivery Point",
+      dispatchStation: settings.stationAddress || settings.businessName,
+      staffName: sale.staffName || "Station Attendant",
+      vehicleNumber: sale.vehicleNumber || "NOT SPECIFIED",
+      driverName: sale.driverName || "Designated Transporter",
+      driverPhone: sale.driverPhone || "N/A",
+      items: sale.items.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unit: item.unit || "Unit",
+        remarks: "Goods Received in Good Condition"
+      })),
+      deliveryNotes: sale.deliveryNotes || "Goods Received in Good Condition & Proper Order."
+    };
+    await printWaybill(waybillData, settings);
   };
-
-  const handleAddProductToSelection = (product: Product) => {
-    setSelectedItems(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
-      }
-      return [...prev, { id: product.id!, name: product.name, quantity: 1, price: product.price || 0 }];
-    });
-  };
-
-  const handleUpdateItemQty = (id: string, qty: number) => {
-    if (qty <= 0) {
-      setSelectedItems(prev => prev.filter(item => item.id !== id));
-    } else {
-      setSelectedItems(prev => prev.map(item => item.id === id ? { ...item, quantity: qty } : item));
-    }
-  };
-
-  const handleDeleteWaybill = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this waybill?")) return;
-    try {
-      await deleteDoc(doc(db, 'waybills', id));
-    } catch (err: any) {
-      alert(err.message || "Failed to delete");
-    }
-  };
-
-  const handleDeleteNote = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this delivery note?")) return;
-    try {
-      await deleteDoc(doc(db, 'deliveryNotes', id));
-    } catch (err: any) {
-      alert(err.message || "Failed to delete");
-    }
-  };
-
-  const handleGenerateWaybill = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.customerName.trim() || !formData.destination.trim()) {
-      alert('Please fill in required fields.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      let bankDetails = {};
-      const settingsDoc = await getDoc(doc(db, 'settings', 'company'));
-      if (settingsDoc.exists()) {
-        const data = settingsDoc.data();
-        bankDetails = {
-          bankName: data.bankName || '',
-          accountNumber: data.accountNumber || '',
-          accountName: data.accountName || '',
-        };
-      }
-
-      const formattedItems = selectedItems.length > 0 
-        ? selectedItems.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
-        : [{ name: 'Standard Cargo Goods', quantity: 1 }];
-
-      await addDoc(collection(db, 'waybills'), {
-        ...formData,
-        status: 'Dispatched',
-        items: formattedItems,
-        ...bankDetails,
-        createdAt: serverTimestamp(),
-      });
-
-      setIsCreateModalOpen(false);
-      setSelectedItems([]);
-      setFormData({
-        waybillNumber: `WB-${Date.now().toString().slice(-6)}`,
-        customerName: '',
-        destination: '',
-        deliveryAddress: '',
-        vehicleNumber: '',
-        driverName: '',
-        driverPhone: '',
-        notes: '',
-      });
-    } catch (err: any) {
-      alert(err.message || 'Failed to save waybill.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleGenerateDeliveryNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!noteData.customerName.trim() || !noteData.deliveryAddress.trim()) {
-      alert('Please fill in customer and delivery address.');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      let companyInfo = {};
-      const settingsDoc = await getDoc(doc(db, 'settings', 'company'));
-      if (settingsDoc.exists()) {
-        const data = settingsDoc.data();
-        companyInfo = {
-          companyName: data.companyName || 'Our Company',
-          companyPhone: data.phone || '',
-          companyEmail: data.email || '',
-          companyAddress: data.address || '',
-        };
-      }
-
-      const formattedItems = selectedItems.length > 0 
-        ? selectedItems.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }))
-        : [{ name: 'Assorted Goods Received', quantity: 1 }];
-
-      await addDoc(collection(db, 'deliveryNotes'), {
-        ...noteData,
-        ...companyInfo,
-        items: formattedItems,
-        status: 'Delivered / Issued',
-        createdAt: serverTimestamp(),
-      });
-
-      setIsNoteModalOpen(false);
-      setSelectedItems([]);
-      setNoteData({
-        noteNumber: `DN-${Date.now().toString().slice(-6)}`,
-        customerName: '',
-        recipientName: '',
-        deliveryAddress: '',
-        orderReference: '',
-        packagesCount: '1',
-        receiverSignaturePlaceholder: 'Received in Good Condition / Goods Received Note',
-      });
-    } catch (err: any) {
-      alert(err.message || 'Failed to generate delivery note.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const filteredProducts = posProducts.filter(p => p.name.toLowerCase().includes(productSearch.toLowerCase()));
 
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto">
-      {/* Header & Navigation Tabs */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl shadow-2xs border border-gray-100">
+    <div className="space-y-6">
+      {/* Top Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-blue-950 tracking-tight">Dispatch &amp; Logistics</h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Manage your shipment waybills and structured goods received notes.
+          <h1 className="text-2xl font-bold text-blue-900 flex items-center gap-2.5">
+            <Truck className="text-amber-500 w-7 h-7" />
+            Waybill &amp; Delivery Notes
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Dispatch management, product calculations, automated delivery notes, and bank details integration
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setActiveTab('waybills')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'waybills' ? 'bg-white text-blue-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
-            }`}
+            type="button"
+            onClick={() => setIsCreatingWaybill(true)}
+            className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-xs transition-colors cursor-pointer"
           >
-            Waybills ({waybills.length})
+            <Plus className="w-4 h-4" />
+            <span>Create Custom Waybill</span>
           </button>
-          <button
-            onClick={() => setActiveTab('deliveryNotes')}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'deliveryNotes' ? 'bg-white text-blue-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
-            }`}
+
+          <Link
+            to="/pos"
+            className="inline-flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white font-semibold px-4 py-2.5 rounded-xl text-sm shadow-xs transition-colors cursor-pointer"
           >
-            Goods Received Notes ({deliveryNotes.length})
-          </button>
+            <span>POS Dispatch</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-white p-4 rounded-2xl shadow-2xs border border-gray-100">
-        <div className="relative w-full sm:w-72">
+      {/* Company Bank Details Widget */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-950 text-white p-4 rounded-xl shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-blue-800/80 rounded-xl">
+            <Building2 className="w-6 h-6 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="font-bold text-sm uppercase tracking-wider text-amber-400">Attached Company Bank Details</h3>
+            <p className="text-xs text-blue-200 mt-0.5">Printed automatically on invoices &amp; linked paperwork for client transfers</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-4 text-xs bg-blue-950/60 px-4 py-2.5 rounded-lg border border-blue-800/50">
+          <div>
+            <span className="text-gray-400 block">Bank Name:</span>
+            <strong className="text-white">{settings.bankName || "Access Bank / Zenith Bank"}</strong>
+          </div>
+          <div>
+            <span className="text-gray-400 block">Account Number:</span>
+            <strong className="text-amber-300 font-mono">{settings.accountNumber || "0123456789"}</strong>
+          </div>
+          <div>
+            <span className="text-gray-400 block">Account Name:</span>
+            <strong className="text-white">{settings.accountName || settings.businessName || "Croissance Energy"}</strong>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-xs">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Waybill Dispatches</p>
+          <p className="text-2xl font-bold text-amber-600 mt-1">{waybillsList.length}</p>
+          <p className="text-xs text-gray-400 mt-0.5">Recorded delivery consignments</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-xs bg-gradient-to-br from-amber-50/50 to-white">
+          <p className="text-xs font-semibold text-amber-900 uppercase tracking-wider">Total Volume Dispatched</p>
+          <p className="text-2xl font-bold text-blue-900 mt-1">{totalUnitsDispatched.toLocaleString()} Units</p>
+          <p className="text-xs text-amber-700/80 mt-0.5">Fuel, LPG &amp; Lubricants in transit</p>
+        </div>
+
+        <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-xs bg-gradient-to-br from-blue-50/50 to-white">
+          <p className="text-xs font-semibold text-blue-900 uppercase tracking-wider">Station / Depot</p>
+          <p className="text-sm font-bold text-gray-800 mt-2 truncate">
+            {settings.stationAddress || settings.businessName || "Croissance Depot"}
+          </p>
+          <p className="text-xs text-blue-600 mt-1">Official dispatching hub</p>
+        </div>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input 
-            type="text" 
-            placeholder={`Search ${activeTab === 'waybills' ? 'waybills' : 'goods received notes'}...`} 
+          <input
+            type="text"
+            placeholder="Search by Waybill #, Invoice #, Consignee, Vehicle..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs sm:text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
+            className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
           />
         </div>
-
-        {activeTab === 'waybills' ? (
-          <button
-            onClick={() => { setSelectedItems([]); setIsCreateModalOpen(true); }}
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow transition-all cursor-pointer whitespace-nowrap w-full sm:w-auto justify-center"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Generate Waybill</span>
-          </button>
-        ) : (
-          <button
-            onClick={() => { setSelectedItems([]); setIsNoteModalOpen(true); }}
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow transition-all cursor-pointer whitespace-nowrap w-full sm:w-auto justify-center"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Create Goods Received Note</span>
-          </button>
-        )}
       </div>
 
-      {/* Content View */}
-      {activeTab === 'waybills' ? (
-        <div className="bg-white rounded-2xl shadow-2xs border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wider border-b border-gray-100">
-                <tr>
-                  <th className="px-5 py-3.5">Waybill Number</th>
-                  <th className="px-4 py-3.5">Customer / Consignee</th>
-                  <th className="px-4 py-3.5">Destination</th>
-                  <th className="px-4 py-3.5">Dispatch Date</th>
-                  <th className="px-4 py-3.5 text-center">Status</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {waybills.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-gray-400">
-                      <FileText className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p className="font-semibold text-sm">No waybills recorded</p>
+      {/* Create Waybill Modal / Drawer Form */}
+      {isCreatingWaybill && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-blue-950 text-white flex justify-between items-center">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <Truck className="w-5 h-5 text-amber-400" />
+                <span>Create Custom Waybill &amp; Delivery Note</span>
+              </h3>
+              <button 
+                onClick={() => setIsCreatingWaybill(false)}
+                className="text-gray-300 hover:text-white font-bold text-lg px-2 cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomWaybill} className="p-6 overflow-y-auto space-y-4 flex-1">
+              {formError && (
+                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+                  {formError}
+                </div>
+              )}
+
+              {/* Customer Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Select Customer / Consignee</label>
+                  <select
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600"
+                    value={selectedCustomer?.id || ""}
+                    onChange={(e) => {
+                      const found = customers.find((c: Customer) => c.id === e.target.value);
+                      setSelectedCustomer(found || null);
+                      if (found?.address) setDeliveryAddress(found.address);
+                    }}
+                  >
+                    <option value="">-- Choose Customer --</option>
+                    {customers.map((c: Customer) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName} {c.type ? `(${c.type})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Delivery Address / Destination</label>
+                  <input
+                    type="text"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="Enter destination address..."
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                </div>
+              </div>
+
+              {/* Logistics & Vehicle info */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Vehicle Number</label>
+                  <input
+                    type="text"
+                    value={vehicleNumber}
+                    onChange={(e) => setVehicleNumber(e.target.value)}
+                    placeholder="e.g. ABC-123-XY"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Driver Name</label>
+                  <input
+                    type="text"
+                    value={driverName}
+                    onChange={(e) => setDriverName(e.target.value)}
+                    placeholder="Driver's Full Name"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Driver Phone</label>
+                  <input
+                    type="text"
+                    value={driverPhone}
+                    onChange={(e) => setDriverPhone(e.target.value)}
+                    placeholder="Phone number"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Product Selection & Quantity Pricing */}
+              <div className="pt-2 border-t border-gray-200">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-xs font-bold text-gray-700 uppercase">Select Products &amp; Calculate Pricing</label>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        handleAddProductRow(e.target.value);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="bg-blue-50 text-blue-900 border border-blue-200 text-xs font-bold rounded-lg px-3 py-1.5 outline-none cursor-pointer"
+                  >
+                    <option value="">+ Add Product Item</option>
+                    {products.map((p: Product) => (
+                      <option key={p.id} value={p.id}>{p.name} ({formatCurrency(p.sellingPrice || p.retailPrice || 0)})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {waybillItems.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200 text-xs">
+                      <div className="flex-1 font-bold text-gray-900">{item.productName}</div>
+                      <div className="text-gray-500">@{formatCurrency(item.unitPrice)}</div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0.1"
+                          step="any"
+                          value={item.quantity}
+                          onChange={(e) => handleUpdateItemQty(idx, e.target.value)}
+                          className="w-20 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
+                        />
+                        <span className="text-gray-400">{item.unit}</span>
+                      </div>
+                      <div className="font-bold text-blue-950 w-24 text-right">{formatCurrency(item.total)}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItemRow(idx)}
+                        className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {waybillItems.length === 0 && (
+                    <p className="text-center text-xs text-gray-400 py-4 italic">No products added yet. Click "+ Add Product Item" above.</p>
+                  )}
+                </div>
+
+                {waybillItems.length > 0 && (
+                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200 font-bold text-sm">
+                    <span>Calculated Total Amount:</span>
+                    <span className="text-blue-950 text-base">{formatCurrency(calculatedSubtotal)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Automated Delivery Note Notice */}
+              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-start gap-2 text-xs text-emerald-900">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold">Automated Delivery Note Included:</strong>
+                  <span>"Goods Received in Good Condition &amp; Proper Order" will be securely stamped at the bottom of the waybill document along with bank transfer instructions.</span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCreatingWaybill(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmitting ? "Generating..." : "Save & Generate Waybill"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Waybills Table */}
+      <div className="bg-white rounded-xl shadow-xs border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+              <tr>
+                <th className="px-5 py-3.5">Waybill #</th>
+                <th className="px-5 py-3.5">Invoice Ref</th>
+                <th className="px-5 py-3.5">Dispatch Date</th>
+                <th className="px-5 py-3.5">Consignee</th>
+                <th className="px-5 py-3.5">Destination &amp; Vehicle</th>
+                <th className="px-5 py-3.5">Dispatched Items</th>
+                <th className="px-5 py-3.5 text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {[...waybillsList].reverse().map((sale: Sale) => {
+                const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+                const totalQty = sale.items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+                return (
+                  <tr key={sale.id} className="hover:bg-amber-50/20 transition-colors">
+                    <td className="px-5 py-4 font-bold text-amber-700">
+                      <button
+                        onClick={() => setSelectedSaleForWaybill(sale)}
+                        className="hover:underline flex items-center gap-1.5 cursor-pointer text-left"
+                      >
+                        <Truck className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{waybillNum}</span>
+                      </button>
                     </td>
-                  </tr>
-                ) : (
-                  waybills.map((w) => (
-                    <tr key={w.id} className="hover:bg-blue-50/20 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-blue-900">{w.waybillNumber}</td>
-                      <td className="px-4 py-3.5 font-semibold text-gray-900 flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-gray-400" />
-                        <span>{w.customerName}</span>
-                      </td>
-                      <td className="px-4 py-3.5 text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                          <span className="truncate max-w-xs">{w.destination}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-gray-600">{formatDate(w.createdAt || w.date)}</td>
-                      <td className="px-4 py-3.5 text-center">
-                        <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
-                          {w.status || 'Dispatched'}
+
+                    <td className="px-5 py-4 text-xs font-semibold text-blue-900">
+                      <button
+                        onClick={() => setSelectedSaleForInvoice(sale)}
+                        className="hover:underline flex items-center gap-1 cursor-pointer"
+                        title="View Linked Invoice"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-blue-600" />
+                        <span>{sale.invoiceNumber}</span>
+                      </button>
+                    </td>
+
+                    <td className="px-5 py-4 text-xs text-gray-500">
+                      {formatDate(sale.date)}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-gray-800">{sale.customerName || "Customer"}</div>
+                      {sale.customerPhone && (
+                        <div className="text-[11px] text-gray-400">{sale.customerPhone}</div>
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4 text-xs">
+                      <div className="flex items-center gap-1 text-gray-700">
+                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                        <span className="truncate max-w-[200px]">
+                          {sale.deliveryAddress || sale.customerAddress || "Local Depot / Station Pickup"}
                         </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setSelectedWaybill(w)}
-                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>View / Print</span>
-                          </button>
-                          <button
-                            onClick={() => w.id && handleDeleteWaybill(w.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl shadow-2xs border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs sm:text-sm whitespace-nowrap">
-              <thead className="bg-gray-50 text-gray-600 text-xs font-bold uppercase tracking-wider border-b border-gray-100">
-                <tr>
-                  <th className="px-5 py-3.5">Note Number</th>
-                  <th className="px-4 py-3.5">Customer / Client</th>
-                  <th className="px-4 py-3.5">Delivery Address</th>
-                  <th className="px-4 py-3.5">Packages</th>
-                  <th className="px-4 py-3.5">Date Issued</th>
-                  <th className="px-5 py-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {deliveryNotes.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-gray-400">
-                      <ClipboardCheck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p className="font-semibold text-sm">No goods received notes found</p>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">
+                        Vehicle: <strong className="text-gray-800">{sale.vehicleNumber || "Standard Logistics"}</strong>
+                        {sale.driverName && <span> &bull; {sale.driverName}</span>}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-xs font-medium text-gray-700">
+                      <span className="font-bold text-blue-900">{totalQty} units</span> across {sale.items.length} item{sale.items.length !== 1 ? "s" : ""}
+                      <div className="text-[11px] text-gray-400 truncate max-w-[180px]">
+                        {sale.items.map(i => `${i.quantity}x ${i.productName}`).join(", ")}
+                      </div>
+                    </td>
+
+                    <td className="px-5 py-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {/* Download PDF button */}
+                        <button
+                          onClick={(e) => handleQuickDownload(sale, e)}
+                          className="p-1.5 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
+                          title="Download Waybill PDF"
+                        >
+                          {downloadingId === sale.id ? (
+                            <Check className="w-4 h-4 text-emerald-600" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </button>
+
+                        {/* Print button */}
+                        <button
+                          onClick={(e) => handleQuickPrint(sale, e)}
+                          className="p-1.5 text-gray-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                          title="Print Waybill"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+
+                        {/* Edit & View Waybill */}
+                        <button
+                          onClick={() => setSelectedSaleForWaybill(sale)}
+                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                          title="Edit Logistics & View Waybill"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View &amp; Edit</span>
+                        </button>
+
+                        {/* Linked Invoice */}
+                        <button
+                          onClick={() => setSelectedSaleForInvoice(sale)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                          title="View Linked Invoice"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
-                ) : (
-                  deliveryNotes.map((note) => (
-                    <tr key={note.id} className="hover:bg-emerald-50/20 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-emerald-900">{note.noteNumber}</td>
-                      <td className="px-4 py-3.5 font-semibold text-gray-900">{note.customerName}</td>
-                      <td className="px-4 py-3.5 text-gray-600 truncate max-w-xs">{note.deliveryAddress}</td>
-                      <td className="px-4 py-3.5 text-gray-600 font-medium">{note.packagesCount} Carton(s)</td>
-                      <td className="px-4 py-3.5 text-gray-600">{formatDate(note.createdAt)}</td>
-                      <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => handleDeleteNote(note.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+
+              {waybillsList.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-gray-400">
+                    <Truck className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                    <p className="font-semibold text-gray-600 text-base">No Waybills Dispatched</p>
+                    <p className="text-xs text-gray-400 mt-1">Waybills are automatically prepared or can be custom-created using the button above.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      {/* Waybill Modal */}
+      {selectedSaleForWaybill && (
+        <WaybillModal
+          sale={selectedSaleForWaybill}
+          settings={settings}
+          onClose={() => setSelectedSaleForWaybill(null)}
+        />
       )}
 
-      {/* POS Product Picker Component Helper */}
-      {/* Reusable Section for selecting products inside modals */}
-      {/* Defined inline for both Modals */}
-
-      {/* Generate Waybill Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between border-b pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <Truck className="w-5 h-5 text-blue-600" />
-                <h3 className="text-lg font-bold text-gray-900">Generate Standard Waybill</h3>
-              </div>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleGenerateWaybill} className="space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Waybill Number</label>
-                  <input type="text" required value={formData.waybillNumber} onChange={(e) => setFormData({ ...formData, waybillNumber: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none font-bold text-blue-950" />
-                </div>
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Customer Name *</label>
-                  <select required value={formData.customerName} onChange={handleCustomerChange} className="w-full border border-gray-200 rounded-xl px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-blue-600">
-                    <option value="">Select customer...</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.name}>{c.name} {c.company ? `(${c.company})` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Destination / Branch *</label>
-                  <input type="text" required placeholder="e.g. Central Warehouse" value={formData.destination} onChange={(e) => setFormData({ ...formData, destination: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Vehicle / Truck Number</label>
-                  <input type="text" placeholder="e.g. ABC-123-XY" value={formData.vehicleNumber} onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 outline-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-gray-700 mb-1">Full Delivery Address</label>
-                <input type="text" placeholder="Street address or delivery location" value={formData.deliveryAddress} onChange={(e) => setFormData({ ...formData, deliveryAddress: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 outline-none" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Driver Name</label>
-                  <input type="text" placeholder="Driver full name" value={formData.driverName} onChange={(e) => setFormData({ ...formData, driverName: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Driver Phone</label>
-                  <input type="tel" placeholder="Phone number" value={formData.driverPhone} onChange={(e) => setFormData({ ...formData, driverPhone: e.target.value })} className="w-full border border-gray-200 rounded-xl px-3 py-2 outline-none" />
-                </div>
-              </div>
-
-              {/* POS Product Selector Section */}
-              <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-gray-800 flex items-center gap-1.5">
-                    <Package className="w-4 h-4 text-blue-600" /> Select Items from POS Inventory
-                  </span>
-                  <span className="text-[11px] text-gray-500">{selectedItems.length} item(s) chosen</span>
-                </div>
-                
-                <input 
-                  type="text" 
-                  placeholder="Search POS products..." 
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none"
-                />
-
-                <div className="max-h-36 overflow-y-auto space-y-1 bg-white border border-gray-100 rounded-lg p-2">
-                  {filteredProducts.length === 0 ? (
-                    <p className="text-center text-xs text-gray-400 py-3">No inventory items match search.</p>
-                  ) : (
-                    filteredProducts.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-1.5 hover:bg-blue-50/50 rounded-lg text-xs">
-                        <div>
-                          <p className="font-semibold text-gray-800">{p.name}</p>
-                          <p className="text-[10px] text-gray-500">Stock: {p.stock || 0} | {formatCurrency(p.price || 0)}</p>
-                        </div>
-                        <button 
-                          type="button" 
-                          onClick={() => handleAddProductToSelection(p)}
-                          className="bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer"
-                        >
-                          + Add
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Selected List Summary */}
-                {selectedItems.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t">
-                    <p className="font-semibold text-xs text-gray-700">Selected Cargo Items:</p>
-                    {selectedItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border text-xs">
-                        <span className="font-medium text-gray-800 truncate max-w-[200px]">{item.name}</span>
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="number" 
-                            min="1" 
-                            value={item.quantity} 
-                            onChange={(e) => handleUpdateItemQty(item.id, parseInt(e.target.value) || 0)}
-                            className="w-14 border rounded px-1.5 py-0.5 text-center font-bold"
-                          />
-                          <button type="button" onClick={() => handleUpdateItemQty(item.id, 0)} className="text-red-500 hover:text-red-700 font-bold px-1">×</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex items-center gap-2 text-blue-900">
-                <Landmark className="w-4 h-4 shrink-0 text-blue-600" />
-                <span className="text-[11px] font-medium">Company bank details will be attached automatically from settings.</span>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t">
-                <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 border rounded-xl text-gray-600 font-semibold cursor-pointer">Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-blue-600 text-white rounded-xl font-semibold shadow cursor-pointer">{saving ? 'Saving...' : 'Save Waybill'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Invoice Modal */}
+      {selectedSaleForInvoice && (
+        <InvoiceModal
+          sale={selectedSaleForInvoice}
+          settings={settings}
+          onClose={() => setSelectedSaleForInvoice(null)}
+        />
       )}
-
-      {/* Generate Structured Goods Received Note Modal */}
-      {isNoteModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
-            <div className="flex items-center justify-between border-b pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <ClipboardCheck className="w-5 h-5 text-emerald-600" />
-                <h3 className="text-lg font-bold text-gray-900">Create Professional Goods Received Note</h3>
-              </div>
-              <button onClick={() => setIsNoteModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleGenerateDeliveryNote} className="space-y-4 text-xs sm:text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Note Number</label>
-                  <input type="text" required value={noteData.noteNumber} onChange={(e) => setNoteData({ ...noteData, noteNumber: e.target.value })} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none font-bold text-emerald-950" />
-                </div>
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Customer / Vendor *</label>
-                  <select required value={noteData.customerName} onChange={handleNoteCustomerChange} className="w-full border border-gray-200 rounded-xl px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-emerald-600">
-                    <option value="">Select customer/vendor...</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Recipient Name</label>
-                  <input type="text" placeholder="Person inspecting/receiving" value={noteData.recipientName} onChange={(e) => setNoteData({ ...noteData, recipientName: e.target.value })} className="w-full border rounded-xl px-3 py-2 outline-none" />
-                </div>
-                <div>
-                  <label className="block font-medium text-gray-700 mb-1">Order Reference</label>
-                  <input type="text" placeholder="e.g. PO-98231" value={noteData.orderReference} onChange={(e) => setNoteData({ ...noteData, orderReference: e.target.value })} className="w-full border rounded-xl px-3 py-2 outline-none" />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-medium text-gray-700 mb-1">Receiving Delivery Address *</label>
-                <input type="text" required placeholder="Full street delivery location" value={noteData.deliveryAddress} onChange={(e) => setNoteData({ ...noteData, deliveryAddress: e.target.value })} className="w-full border rounded-xl px-3 py-2 outline-none" />
-              </div>
-
-              <div>
-                <label className="block font-medium text-gray-700 mb-1">Total Packages / Cartons Count</label>
-                <input type="number" min="1" value={noteData.packagesCount} onChange={(e) => setNoteData({ ...noteData, packagesCount: e.target.value })} className="w-full border rounded-xl px-3 py-2 outline-none" />
-              </div>
-
-              {/* POS Product Selector for Goods Received Note */}
-              <div className="border border-emerald-200 rounded-xl p-3 bg-emerald-50/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-gray-800 flex items-center gap-1.5">
-                    <Package className="w-4 h-4 text-emerald-600" /> Select Received Items from POS POS Stock
-                  </span>
-                  <span className="text-[11px] text-gray-500">{selectedItems.length} item(s) chosen</span>
-                </div>
-                
-                <input 
-                  type="text" 
-                  placeholder="Search POS inventory..." 
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  className="w-full bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-xs outline-none"
-                />
-
-                <div className="max-h-36 overflow-y-auto space-y-1 bg-white border border-gray-100 rounded-lg p-2">
-                  {filteredProducts.length === 0 ? (
-                    <p className="text-center text-xs text-gray-400 py-3">No inventory items match search.</p>
-                  ) : (
-                    filteredProducts.map(p => (
-                      <div key={p.id} className="flex items-center justify-between p-1.5 hover:bg-emerald-50/50 rounded-lg text-xs">
-                        <div>
-                          <p className="font-semibold text-gray-800">{p.name}</p>
-                          <p className="text-[10px] text-gray-500">Unit Price: {formatCurrency(p.price || 0)}</p>
-                        </div>
-                        <button 
-                          type="button" 
-                          onClick={() => handleAddProductToSelection(p)}
-                          className="bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-2.5 py-1 rounded-md font-bold transition-colors cursor-pointer"
-                        >
-                          + Pick
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Selected List Summary */}
-                {selectedItems.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t">
-                    <p className="font-semibold text-xs text-gray-700">Received Goods Items List:</p>
-                    {selectedItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border text-xs">
-                        <span className="font-medium text-gray-800 truncate max-w-[200px]">{item.name}</span>
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="number" 
-                            min="1" 
-                            value={item.quantity} 
-                            onChange={(e) => handleUpdateItemQty(item.id, parseInt(e.target.value) || 0)}
-                            className="w-14 border rounded px-1.5 py-0.5 text-center font-bold"
-                          />
-                          <button type="button" onClick={() => handleUpdateItemQty(item.id, 0)} className="text-red-500 hover:text-red-700 font-bold px-1">×</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-4 border-t">
-                <button type="button" onClick={() => setIsNoteModalOpen(false)} className="px-4 py-2 border rounded-xl text-gray-600 font-semibold cursor-pointer">Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 bg-emerald-600 text-white rounded-xl font-semibold shadow cursor-pointer">{saving ? 'Saving...' : 'Save Goods Received Note'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <WaybillModal waybill={selectedWaybill} onClose={() => setSelectedWaybill(null)} />
     </div>
   );
 }
