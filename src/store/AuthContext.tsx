@@ -19,6 +19,8 @@ import { auth, db } from "../firebase";
 import {
   doc,
   getDoc,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 
 interface AuthContextType {
@@ -68,7 +70,7 @@ export function AuthProvider({
   };
 
   /**
-   * Load the user's profile from Firestore.
+   * Load the user's profile from Firestore, or auto-create it if missing.
    */
   const loadUserProfile = async (
     firebaseUser: any
@@ -112,22 +114,38 @@ export function AuthProvider({
           role
         );
       } else {
-        console.warn(
-          "No Firestore user document found for UID:",
-          firebaseUser.uid
+        // 🔥 AUTO-HEALING: If document doesn't exist for this UID, create it instantly!
+        // Make sure to replace "admin@croissance.com" with your actual admin email
+        const isAdminEmail = 
+          firebaseUser.email?.toLowerCase() === "admin@croissance.com";
+          
+        role = isAdminEmail ? "admin" : "user";
+
+        await setDoc(userDocRef, {
+          email: firebaseUser.email || "",
+          fullName: fullName,
+          role: role,
+          status: "Active",
+          createdAt: serverTimestamp(),
+        });
+
+        console.log(
+          "Automatically created missing user document for UID:",
+          firebaseUser.uid,
+          "with role:",
+          role
         );
       }
     } catch (error) {
       console.error(
-        "Error loading user profile:",
+        "Error loading/creating user profile:",
         error
       );
     }
 
     return {
       id: firebaseUser.uid,
-      email:
-        firebaseUser.email || "",
+      email: firebaseUser.email || "",
       fullName,
       name: fullName,
       role,
@@ -136,9 +154,6 @@ export function AuthProvider({
 
   /**
    * Firebase authentication state listener.
-   *
-   * This prevents an old localStorage role from being
-   * used indefinitely.
    */
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -214,10 +229,6 @@ export function AuthProvider({
       const firebaseUser =
         userCredential.user;
 
-      /**
-       * IMPORTANT:
-       * Always retrieve the role from Firestore.
-       */
       const appUser =
         await loadUserProfile(
           firebaseUser
@@ -249,9 +260,6 @@ export function AuthProvider({
 
   /**
    * Google login.
-   *
-   * This keeps your existing behavior, but note that
-   * role-by-email is not as reliable as Firestore roles.
    */
   const loginWithGoogle = async (
     email: string,
