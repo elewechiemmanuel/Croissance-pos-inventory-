@@ -16,7 +16,8 @@ import {
   Eye,
   EyeOff,
   UserCheck,
-  Radio
+  Radio,
+  LogOut
 } from "lucide-react";
 import { apiCall } from "../lib/api";
 
@@ -54,6 +55,7 @@ export default function UsersPage() {
   const [selectedUserForPassword, setSelectedUserForPassword] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<User | null>(null);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -135,6 +137,26 @@ export default function UsersPage() {
     setNewPassword("");
     setShowPassword(false);
     setIsPasswordModalOpen(true);
+  };
+
+  const handleForceLogout = async (u: User) => {
+    if (u.id === currentUser?.id) {
+      alert("To log yourself out, please use the standard Logout button in the navigation.");
+      return;
+    }
+    if (!confirm(`Are you sure you want to force log out ${u.fullName}?`)) return;
+
+    try {
+      // Endpoint name can be adjusted depending on backend route (e.g., terminateSession or logoutUser)
+      await apiCall("terminateSession", { userId: u.id });
+      showToast(`Successfully logged out ${u.fullName}`);
+      if (refreshData) {
+        await refreshData();
+      }
+    } catch (error: unknown) {
+      const err = error as Error;
+      alert(err.message || "Failed to terminate user session.");
+    }
   };
 
   const handleSaveUser = async (e: React.FormEvent, andAddAnother: boolean = false) => {
@@ -454,7 +476,23 @@ export default function UsersPage() {
                       </button>
                     </td>
 
-                    <td className="px-5 py-4 text-right space-x-2">
+                    <td className="px-5 py-4 text-right space-x-1">
+                      <button
+                        onClick={() => setViewingUser(u)}
+                        className="p-1.5 text-gray-500 hover:text-blue-600 rounded-lg hover:bg-blue-50"
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      {online && !isCurrent && (
+                        <button
+                          onClick={() => handleForceLogout(u)}
+                          className="p-1.5 text-gray-500 hover:text-red-600 rounded-lg hover:bg-red-50"
+                          title="Force Log Out User"
+                        >
+                          <LogOut className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleOpenPasswordModal(u)}
                         className="p-1.5 text-gray-500 hover:text-amber-600 rounded-lg hover:bg-amber-50"
@@ -485,6 +523,91 @@ export default function UsersPage() {
           </table>
         </div>
       </div>
+
+      {/* VIEW USER DETAILS MODAL */}
+      {viewingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-5 shadow-xl">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="font-bold text-lg text-blue-900 flex items-center gap-2">
+                <UserIcon className="w-5 h-5 text-blue-600" /> User Profile Details
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => setViewingUser(null)} 
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border">
+                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-sm">
+                  {viewingUser.fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 text-base">{viewingUser.fullName}</h4>
+                  <p className="text-xs text-gray-500">ID: {viewingUser.id}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-gray-50 p-3 rounded-lg border">
+                  <span className="block text-xs font-semibold text-gray-400 uppercase">Email Address</span>
+                  <span className="font-medium text-gray-800 break-all">{viewingUser.email}</span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg border">
+                  <span className="block text-xs font-semibold text-gray-400 uppercase">System Role</span>
+                  <span className="font-medium text-gray-800 capitalize">{viewingUser.role === "admin" ? "Administrator" : "Cashier / Attendant"}</span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg border">
+                  <span className="block text-xs font-semibold text-gray-400 uppercase">Account Status</span>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold mt-1 ${
+                    (viewingUser.status || "Active") === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
+                  }`}>
+                    {viewingUser.status || "Active"}
+                  </span>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg border">
+                  <span className="block text-xs font-semibold text-gray-400 uppercase">Live Presence</span>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold mt-1 ${
+                    isUserOnline(viewingUser) ? "bg-emerald-100 text-emerald-800" : "bg-gray-200 text-gray-700"
+                  }`}>
+                    {isUserOnline(viewingUser) ? "Online Now" : "Offline"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 p-3 rounded-lg border text-xs space-y-1">
+                <p><span className="font-semibold text-gray-500">Last Active:</span> {formatTimeAgo(viewingUser.lastActiveAt || viewingUser.lastLogin)}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-3 border-t">
+              {isUserOnline(viewingUser) && viewingUser.id !== currentUser?.id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleForceLogout(viewingUser);
+                    setViewingUser(null);
+                  }}
+                  className="px-3 py-2 text-sm bg-red-100 hover:bg-red-200 text-red-700 font-medium rounded-lg flex items-center gap-1.5"
+                >
+                  <LogOut className="w-4 h-4" /> Force Log Out
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setViewingUser(null)}
+                className="px-4 py-2 text-sm bg-blue-900 hover:bg-blue-800 text-white font-medium rounded-lg ml-auto"
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* CREATE / EDIT USER MODAL */}
       {isModalOpen && (
