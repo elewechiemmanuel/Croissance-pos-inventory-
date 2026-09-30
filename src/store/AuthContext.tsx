@@ -1,122 +1,333 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
+
 import { User } from "../types";
-import { signInWithEmailAndPassword } from "firebase/auth";
+
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
+
 import { auth, db } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
+
+import {
+  doc,
+  getDoc,
+} from "firebase/firestore";
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, pass: string) => Promise<void>;
-  loginWithGoogle: (email: string, fullName: string) => Promise<void>;
+  loginWithGoogle: (
+    email: string,
+    fullName: string
+  ) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   sendHeartbeat: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(
+  undefined
+);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+type AppRole =
+  | "admin"
+  | "user"
+  | "manager"
+  | "cashier";
+
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const sendHeartbeat = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      // Background heartbeat
-    } catch (e) {}
-  }, [user?.id]);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("croissance_user");
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser);
-        setUser(parsed);
-      } catch (e) {}
+  /**
+   * Make sure only valid application roles are accepted.
+   */
+  const getValidRole = (role: any): AppRole => {
+    if (
+      role === "admin" ||
+      role === "manager" ||
+      role === "cashier" ||
+      role === "user"
+    ) {
+      return role;
     }
-    setIsLoading(false);
+
+    return "user";
+  };
+
+  /**
+   * Load the user's profile from Firestore.
+   */
+  const loadUserProfile = async (
+    firebaseUser: any
+  ): Promise<User> => {
+    let fullName =
+      firebaseUser.displayName ||
+      firebaseUser.email?.split("@")[0] ||
+      "User";
+
+    let role: AppRole = "user";
+
+    try {
+      const userDocRef = doc(
+        db,
+        "users",
+        firebaseUser.uid
+      );
+
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+
+        if (data.fullName) {
+          fullName = data.fullName;
+        }
+
+        if (data.name && !data.fullName) {
+          fullName = data.name;
+        }
+
+        role = getValidRole(data.role);
+
+        console.log(
+          "Firestore user profile:",
+          data
+        );
+
+        console.log(
+          "User role:",
+          role
+        );
+      } else {
+        console.warn(
+          "No Firestore user document found for UID:",
+          firebaseUser.uid
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error loading user profile:",
+        error
+      );
+    }
+
+    return {
+      id: firebaseUser.uid,
+      email:
+        firebaseUser.email || "",
+      fullName,
+      name: fullName,
+      role,
+    };
+  };
+
+  /**
+   * Firebase authentication state listener.
+   *
+   * This prevents an old localStorage role from being
+   * used indefinitely.
+   */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        try {
+          if (firebaseUser) {
+            const appUser =
+              await loadUserProfile(firebaseUser);
+
+            setUser(appUser);
+
+            localStorage.setItem(
+              "croissance_user",
+              JSON.stringify(appUser)
+            );
+          } else {
+            setUser(null);
+            localStorage.removeItem(
+              "croissance_user"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Authentication state error:",
+            error
+          );
+
+          setUser(null);
+          localStorage.removeItem(
+            "croissance_user"
+          );
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
-  const login = async (email: string, pass: string) => {
+  /**
+   * Background heartbeat.
+   */
+  const sendHeartbeat = useCallback(async () => {
+    if (!user?.id) return;
+
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, pass);
-      const firebaseUser = userCredential.user;
+      // Background heartbeat
+    } catch (e) {
+      console.error(
+        "Heartbeat error:",
+        e
+      );
+    }
+  }, [user?.id]);
 
-      let fullName = firebaseUser.displayName || email.split("@")[0];
-      // Updated role type definition to include "cashier" from your Firestore records
-      let role: "admin" | "user" | "manager" | "cashier" = "user";
+  /**
+   * Email/password login.
+   */
+  const login = async (
+    email: string,
+    pass: string
+  ) => {
+    try {
+      const userCredential =
+        await signInWithEmailAndPassword(
+          auth,
+          email,
+          pass
+        );
 
-      try {
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const data = userDocSnap.data();
-          if (data.fullName) fullName = data.fullName;
-          if (data.role) role = data.role;
-        }
-      } catch (err) {
-        console.warn("Could not fetch user profile from Firestore, falling back to defaults.", err);
-      }
+      const firebaseUser =
+        userCredential.user;
 
-      const appUser: User = {
-        id: firebaseUser.uid,
-        email: firebaseUser.email || email,
-        fullName: fullName,
-        name: fullName,
-        role: role
-      };
+      /**
+       * IMPORTANT:
+       * Always retrieve the role from Firestore.
+       */
+      const appUser =
+        await loadUserProfile(
+          firebaseUser
+        );
+
+      console.log(
+        "Logged-in application user:",
+        appUser
+      );
 
       setUser(appUser);
-      localStorage.setItem("croissance_user", JSON.stringify(appUser));
+
+      localStorage.setItem(
+        "croissance_user",
+        JSON.stringify(appUser)
+      );
     } catch (error: any) {
-      console.error("Firebase login failed:", error);
-      throw new Error(error.message || "Invalid email or password.");
+      console.error(
+        "Firebase login failed:",
+        error
+      );
+
+      throw new Error(
+        error.message ||
+          "Invalid email or password."
+      );
     }
   };
 
-  const loginWithGoogle = async (email: string, fullName: string) => {
+  /**
+   * Google login.
+   *
+   * This keeps your existing behavior, but note that
+   * role-by-email is not as reliable as Firestore roles.
+   */
+  const loginWithGoogle = async (
+    email: string,
+    fullName: string
+  ) => {
     const appUser: User = {
       id: "google_" + Date.now(),
       email,
-      fullName: fullName,
+      fullName,
       name: fullName,
-      role: email.includes("admin") ? "admin" : "user"
+      role: email
+        .toLowerCase()
+        .includes("admin")
+        ? "admin"
+        : "user",
     };
+
     setUser(appUser);
-    localStorage.setItem("croissance_user", JSON.stringify(appUser));
+
+    localStorage.setItem(
+      "croissance_user",
+      JSON.stringify(appUser)
+    );
   };
 
-  const logout = () => {
+  /**
+   * Proper Firebase logout.
+   */
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error(
+        "Firebase logout error:",
+        error
+      );
+    }
+
     setUser(null);
-    localStorage.removeItem("croissance_user");
+
+    localStorage.removeItem(
+      "croissance_user"
+    );
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, loginWithGoogle, logout, isLoading, sendHeartbeat }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        loginWithGoogle,
+        logout,
+        isLoading,
+        sendHeartbeat,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    let fallbackUser: User | null = null;
-    try {
-      const stored = localStorage.getItem("croissance_user");
-      if (stored) {
-        fallbackUser = JSON.parse(stored);
-      }
-    } catch (e) {}
+export const useAuth =
+  (): AuthContextType => {
+    const context =
+      useContext(AuthContext);
 
-    return {
-      user: fallbackUser,
-      login: async () => {},
-      loginWithGoogle: async () => {},
-      logout: () => {},
-      isLoading: false,
-      sendHeartbeat: async () => {}
-    };
-  }
-  return context;
-};
+    if (!context) {
+      return {
+        user: null,
+        login: async () => {},
+        loginWithGoogle: async () => {},
+        logout: () => {},
+        isLoading: false,
+        sendHeartbeat: async () => {},
+      };
+    }
+
+    return context;
+  };

@@ -488,7 +488,7 @@ export default function Waybills() {
                 <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <strong className="block font-bold">Automated Delivery Note Included:</strong>
-                  <span>"Goods Received in Good Condition &amp; Proper Order" will be securely stamped at the bottom of the waybill document along with bank transfer instructions.</span>
+                  <span>"Goods Received in Good Condition &amp; Proper Order" .</span>
                 </div>
               </div>
 
