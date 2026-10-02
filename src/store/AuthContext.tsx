@@ -12,6 +12,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword as firebaseUpdatePassword,
 } from "firebase/auth";
 
 import { auth, db } from "../firebase";
@@ -33,6 +36,7 @@ interface AuthContextType {
   logout: () => void;
   isLoading: boolean;
   sendHeartbeat: () => Promise<void>;
+  changePassword: (currentPass: string, newPass: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(
@@ -118,9 +122,6 @@ export function AuthProvider({
         } else {
           role = getValidRole(data.role);
         }
-
-        console.log("Firestore user profile data:", data);
-        console.log("Determined user role:", role);
       } else {
         // 🔥 AUTO-HEALING: Create missing user document instantly
         role = isAdminEmail ? "admin" : "user";
@@ -132,8 +133,6 @@ export function AuthProvider({
           status: "Active",
           createdAt: serverTimestamp(),
         });
-
-        console.log("Auto-created user document for UID:", firebaseUser.uid, "with role:", role);
       }
     } catch (error) {
       console.error("Error loading/creating user profile:", error);
@@ -209,8 +208,6 @@ export function AuthProvider({
       const firebaseUser = userCredential.user;
       const appUser = await loadUserProfile(firebaseUser);
 
-      console.log("Logged-in application user:", appUser);
-
       setUser(appUser);
       localStorage.setItem(
         "croissance_user",
@@ -250,6 +247,28 @@ export function AuthProvider({
   };
 
   /**
+   * Change password directly using current password for re-authentication.
+   */
+  const changePassword = async (currentPass: string, newPass: string) => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.email) {
+      throw new Error("No authenticated user found.");
+    }
+
+    try {
+      // Re-authenticate the user first for security requirements
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPass);
+      await reauthenticateWithCredential(currentUser, credential);
+
+      // Update to the new password
+      await firebaseUpdatePassword(currentUser, newPass);
+    } catch (error: any) {
+      console.error("Failed to change password:", error);
+      throw new Error(error.message || "Failed to update password. Please check your current password.");
+    }
+  };
+
+  /**
    * Proper Firebase logout.
    */
   const logout = async () => {
@@ -272,6 +291,7 @@ export function AuthProvider({
         logout,
         isLoading,
         sendHeartbeat,
+        changePassword,
       }}
     >
       {children}
@@ -290,6 +310,7 @@ export const useAuth = (): AuthContextType => {
       logout: () => {},
       isLoading: false,
       sendHeartbeat: async () => {},
+      changePassword: async () => {},
     };
   }
 
