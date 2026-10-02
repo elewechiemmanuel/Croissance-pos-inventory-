@@ -4,7 +4,6 @@ import {
   collection,
   onSnapshot,
   query,
-  orderBy,
 } from "firebase/firestore";
 import { useAuth } from "../store/AuthContext";
 import * as XLSX from "xlsx";
@@ -24,10 +23,8 @@ export default function Reports() {
       return;
     }
 
-    const q = query(
-      collection(db, "sales"),
-      orderBy("createdAt", "desc")
-    );
+    // Fetch the collection without strict server-side ordering
+    const q = query(collection(db, "sales"));
 
     const unsubscribe = onSnapshot(
       q,
@@ -36,6 +33,13 @@ export default function Reports() {
           id: doc.id,
           ...doc.data(),
         }));
+
+        // 🛡️ Reliable client-side sorting: newest dates first
+        salesList.sort((a, b) => {
+          const timeA = convertToDate(a.createdAt)?.getTime() || convertToDate(a.timestamp)?.getTime() || convertToDate(a.date)?.getTime() || 0;
+          const timeB = convertToDate(b.createdAt)?.getTime() || convertToDate(b.timestamp)?.getTime() || convertToDate(b.date)?.getTime() || 0;
+          return timeB - timeA; // Descending order (Newest to Oldest)
+        });
 
         setSales(salesList);
         setLoading(false);
@@ -121,10 +125,6 @@ export default function Reports() {
 
   /**
    * Format the transaction date.
-   *
-   * IMPORTANT:
-   * createdAt is checked FIRST because it should contain
-   * the actual Firestore transaction creation time.
    */
   const formatSaleDate = (sale: any) => {
     const possibleDates = [
