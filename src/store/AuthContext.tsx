@@ -81,6 +81,11 @@ export function AuthProvider({
       "User";
 
     let role: AppRole = "user";
+    const emailLower = firebaseUser.email?.toLowerCase() || "";
+
+    // 🔑 Force admin role if email matches your admin email or includes "admin"
+    const isAdminEmail =
+      emailLower === "admin@croissance.com" || emailLower.includes("admin");
 
     try {
       const userDocRef = doc(
@@ -102,7 +107,8 @@ export function AuthProvider({
           fullName = data.name;
         }
 
-        role = getValidRole(data.role);
+        // If it's the admin email, force role to "admin", otherwise read from database
+        role = isAdminEmail ? "admin" : getValidRole(data.role);
 
         console.log(
           "Firestore user profile:",
@@ -115,10 +121,6 @@ export function AuthProvider({
         );
       } else {
         // 🔥 AUTO-HEALING: If document doesn't exist for this UID, create it instantly!
-        // Make sure to replace "admin@croissance.com" with your actual admin email
-        const isAdminEmail = 
-          firebaseUser.email?.toLowerCase() === "admin@croissance.com";
-          
         role = isAdminEmail ? "admin" : "user";
 
         await setDoc(userDocRef, {
