@@ -32,7 +32,20 @@ export default function Waybills() {
   // New Dispatch Creation State
   const [isCreatingWaybill, setIsCreatingWaybill] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
-  const [waybillItems, setWaybillItems] = useState<{ productId: string; productName: string; quantity: number; unitPrice: number; unit: string; total: number }[]>([]);
+  
+  // Extended item state to track both retail and wholesale prices per row
+  const [waybillItems, setWaybillItems] = useState<{ 
+    productId: string; 
+    productName: string; 
+    quantity: number; 
+    retailPrice: number; 
+    wholesalePrice: number; 
+    selectedPriceType: "retail" | "wholesale"; 
+    unitPrice: number; 
+    unit: string; 
+    total: number 
+  }[]>([]);
+
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverPhone, setDriverPhone] = useState("");
@@ -64,13 +77,17 @@ export default function Waybills() {
     }, 0);
   }, [waybillsList]);
 
-  // Add product to custom waybill builder
+  // Add product to custom waybill builder with both prices visible
   const handleAddProductRow = (productId: string) => {
     const prod = products.find((p: Product) => p.id === productId);
     if (!prod) return;
 
-    const isWholesale = selectedCustomer?.type === "Wholesale";
-    const unitPrice = isWholesale ? (prod.wholesalePrice || prod.sellingPrice || 0) : (prod.sellingPrice || prod.retailPrice || 0);
+    const retailPrice = prod.retailPrice || prod.sellingPrice || 0;
+    const wholesalePrice = prod.wholesalePrice || prod.sellingPrice || 0;
+    
+    // Auto-select wholesale if customer type is Wholesale, else retail
+    const defaultType: "retail" | "wholesale" = selectedCustomer?.type === "Wholesale" ? "wholesale" : "retail";
+    const initialUnitPrice = defaultType === "wholesale" ? wholesalePrice : retailPrice;
 
     setWaybillItems(prev => {
       const existingIndex = prev.findIndex(item => item.productId === productId);
@@ -89,9 +106,12 @@ export default function Waybills() {
         productId: prod.id,
         productName: prod.name,
         quantity: 1,
-        unitPrice,
+        retailPrice,
+        wholesalePrice,
+        selectedPriceType: defaultType,
+        unitPrice: initialUnitPrice,
         unit: prod.unit || "L",
-        total: unitPrice
+        total: initialUnitPrice
       }];
     });
   };
@@ -105,6 +125,21 @@ export default function Waybills() {
         ...item,
         quantity: qty,
         total: qty * item.unitPrice
+      };
+      return updated;
+    });
+  };
+
+  const handleTogglePriceType = (index: number, priceType: "retail" | "wholesale") => {
+    setWaybillItems(prev => {
+      const updated = [...prev];
+      const item = updated[index];
+      const newUnitPrice = priceType === "wholesale" ? item.wholesalePrice : item.retailPrice;
+      updated[index] = {
+        ...item,
+        selectedPriceType: priceType,
+        unitPrice: newUnitPrice,
+        total: item.quantity * newUnitPrice
       };
       return updated;
     });
@@ -334,11 +369,11 @@ export default function Waybills() {
       {/* Create Waybill Modal / Drawer Form */}
       {isCreatingWaybill && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 bg-blue-950 text-white flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
                 <Truck className="w-5 h-5 text-amber-400" />
-                <span>Create Custom Waybill &amp; Delivery Note</span>
+                <span>Create Custom Waybill &amp; Delivery Note (Retail &amp; Wholesale Prices)</span>
               </h3>
               <button 
                 onClick={() => setIsCreatingWaybill(false)}
@@ -423,10 +458,10 @@ export default function Waybills() {
                 </div>
               </div>
 
-              {/* Product Selection & Quantity Pricing */}
+              {/* Product Selection & Dual Pricing Control */}
               <div className="pt-2 border-t border-gray-200">
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase">Select Products &amp; Calculate Pricing</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase">Select Products (Retail &amp; Wholesale Pricing Shown)</label>
                   <select
                     onChange={(e) => {
                       if (e.target.value) {
@@ -438,16 +473,43 @@ export default function Waybills() {
                   >
                     <option value="">+ Add Product Item</option>
                     {products.map((p: Product) => (
-                      <option key={p.id} value={p.id}>{p.name} ({formatCurrency(p.sellingPrice || p.retailPrice || 0)})</option>
+                      <option key={p.id} value={p.id}>
+                        {p.name} (Retail: {formatCurrency(p.retailPrice || p.sellingPrice || 0)} | Wholesale: {formatCurrency(p.wholesalePrice || p.sellingPrice || 0)})
+                      </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
                   {waybillItems.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-200 text-xs">
-                      <div className="flex-1 font-bold text-gray-900">{item.productName}</div>
-                      <div className="text-gray-500">@{formatCurrency(item.unitPrice)}</div>
+                    <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs">
+                      <div className="flex-1">
+                      <div className="font-bold text-gray-900">{item.productName}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-3">
+                        <span>Retail: <strong className="text-gray-700">{formatCurrency(item.retailPrice)}</strong></span>
+                        <span>Wholesale: <strong className="text-gray-700">{formatCurrency(item.wholesalePrice)}</strong></span>
+                      </div>
+                    </div>
+
+                    {/* Pricing Mode Toggle Buttons */}
+                    <div className="flex items-center bg-gray-200 p-0.5 rounded-lg">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePriceType(idx, "retail")}
+                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                      >
+                        Retail
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePriceType(idx, "wholesale")}
+                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                      >
+                        Wholesale
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
                         <input
                           type="number"
@@ -455,18 +517,24 @@ export default function Waybills() {
                           step="any"
                           value={item.quantity}
                           onChange={(e) => handleUpdateItemQty(idx, e.target.value)}
-                          className="w-20 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
+                          className="w-16 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
                         />
                         <span className="text-gray-400">{item.unit}</span>
                       </div>
-                      <div className="font-bold text-blue-950 w-24 text-right">{formatCurrency(item.total)}</div>
+
+                      <div className="font-bold text-blue-950 w-24 text-right">
+                        <div>{formatCurrency(item.total)}</div>
+                        <div className="text-[10px] text-gray-400 font-normal">@{formatCurrency(item.unitPrice)}</div>
+                      </div>
+
                       <button
                         type="button"
                         onClick={() => handleRemoveItemRow(idx)}
                         className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
-                      </button>
+                      >
+                    </div>
                     </div>
                   ))}
 
@@ -665,6 +733,6 @@ export default function Waybills() {
           onClose={() => setSelectedSaleForInvoice(null)}
         />
       )}
-    </div>
+  </div>
   );
 }
