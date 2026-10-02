@@ -484,57 +484,57 @@ export default function Waybills() {
                   {waybillItems.map((item, idx) => (
                     <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs">
                       <div className="flex-1">
-                      <div className="font-bold text-gray-900">{item.productName}</div>
-                      <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-3">
-                        <span>Retail: <strong className="text-gray-700">{formatCurrency(item.retailPrice)}</strong></span>
-                        <span>Wholesale: <strong className="text-gray-700">{formatCurrency(item.wholesalePrice)}</strong></span>
-                      </div>
-                    </div>
-
-                    {/* Pricing Mode Toggle Buttons */}
-                    <div className="flex items-center bg-gray-200 p-0.5 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePriceType(idx, "retail")}
-                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
-                      >
-                        Retail
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePriceType(idx, "wholesale")}
-                        className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
-                      >
-                        Wholesale
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0.1"
-                          step="any"
-                          value={item.quantity}
-                          onChange={(e) => handleUpdateItemQty(idx, e.target.value)}
-                          className="w-16 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
-                        />
-                        <span className="text-gray-400">{item.unit}</span>
+                        <div className="font-bold text-gray-900">{item.productName}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-3">
+                          <span>Retail: <strong className="text-gray-700">{formatCurrency(item.retailPrice)}</strong></span>
+                          <span>Wholesale: <strong className="text-gray-700">{formatCurrency(item.wholesalePrice)}</strong></span>
+                        </div>
                       </div>
 
-                      <div className="font-bold text-blue-950 w-24 text-right">
-                        <div>{formatCurrency(item.total)}</div>
-                        <div className="text-[10px] text-gray-400 font-normal">@{formatCurrency(item.unitPrice)}</div>
+                      {/* Pricing Mode Toggle Buttons */}
+                      <div className="flex items-center bg-gray-200 p-0.5 rounded-lg">
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePriceType(idx, "retail")}
+                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                        >
+                          Retail
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePriceType(idx, "wholesale")}
+                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                        >
+                          Wholesale
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveItemRow(idx)}
-                        className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      >
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0.1"
+                            step="any"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateItemQty(idx, e.target.value)}
+                            className="w-16 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
+                          />
+                          <span className="text-gray-400">{item.unit}</span>
+                        </div>
+
+                        <div className="font-bold text-blue-950 w-24 text-right">
+                          <div>{formatCurrency(item.total)}</div>
+                          <div className="text-[10px] text-gray-400 font-normal">@{formatCurrency(item.unitPrice)}</div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItemRow(idx)}
+                          className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
 
@@ -733,6 +733,6 @@ export default function Waybills() {
           onClose={() => setSelectedSaleForInvoice(null)}
         />
       )}
-  </div>
+    </div>
   );
 }
