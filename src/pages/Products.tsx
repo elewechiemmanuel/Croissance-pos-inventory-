@@ -9,7 +9,13 @@ import { Plus, Search, Edit2, Trash2, AlertCircle, Package } from "lucide-react"
 export default function Products() {
   const { products = [], refreshData } = useContext(DataContext);
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  
+  // Robust check to catch different casing or boolean flags for admin
+  const isAdmin = 
+    user?.role === "admin" || 
+    user?.role === "Admin" || 
+    user?.role === "ADMIN" || 
+    (user as any)?.isAdmin === true;
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
