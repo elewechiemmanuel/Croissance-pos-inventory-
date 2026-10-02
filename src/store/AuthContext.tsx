@@ -45,6 +45,9 @@ type AppRole =
   | "manager"
   | "cashier";
 
+// 🔑 Whitelist of absolute admin emails
+const ADMIN_EMAILS = ["admin@croissance.com"];
+
 export function AuthProvider({
   children,
 }: {
@@ -80,12 +83,14 @@ export function AuthProvider({
       firebaseUser.email?.split("@")[0] ||
       "User";
 
-    let role: AppRole = "user";
-    const emailLower = firebaseUser.email?.toLowerCase() || "";
+    // 🛡️ Bulletproof email normalization (removes accidental spaces & lowercase)
+    const emailClean = (firebaseUser.email || "").trim().toLowerCase();
 
-    // 🔑 Force admin role if email matches your admin email or includes "admin"
+    // Force admin status if email matches whitelist or contains "admin"
     const isAdminEmail =
-      emailLower === "admin@croissance.com" || emailLower.includes("admin");
+      ADMIN_EMAILS.includes(emailClean) || emailClean.includes("admin");
+
+    let role: AppRole = isAdminEmail ? "admin" : "user";
 
     try {
       const userDocRef = doc(
@@ -107,20 +112,17 @@ export function AuthProvider({
           fullName = data.name;
         }
 
-        // If it's the admin email, force role to "admin", otherwise read from database
-        role = isAdminEmail ? "admin" : getValidRole(data.role);
+        // 🔑 CRITICAL FIX: If it's an admin email, FORCE "admin". Never let Firestore downgrade an admin.
+        if (isAdminEmail) {
+          role = "admin";
+        } else {
+          role = getValidRole(data.role);
+        }
 
-        console.log(
-          "Firestore user profile:",
-          data
-        );
-
-        console.log(
-          "User role:",
-          role
-        );
+        console.log("Firestore user profile data:", data);
+        console.log("Determined user role:", role);
       } else {
-        // 🔥 AUTO-HEALING: If document doesn't exist for this UID, create it instantly!
+        // 🔥 AUTO-HEALING: Create missing user document instantly
         role = isAdminEmail ? "admin" : "user";
 
         await setDoc(userDocRef, {
@@ -131,18 +133,10 @@ export function AuthProvider({
           createdAt: serverTimestamp(),
         });
 
-        console.log(
-          "Automatically created missing user document for UID:",
-          firebaseUser.uid,
-          "with role:",
-          role
-        );
+        console.log("Auto-created user document for UID:", firebaseUser.uid, "with role:", role);
       }
     } catch (error) {
-      console.error(
-        "Error loading/creating user profile:",
-        error
-      );
+      console.error("Error loading/creating user profile:", error);
     }
 
     return {
@@ -163,31 +157,20 @@ export function AuthProvider({
       async (firebaseUser) => {
         try {
           if (firebaseUser) {
-            const appUser =
-              await loadUserProfile(firebaseUser);
-
+            const appUser = await loadUserProfile(firebaseUser);
             setUser(appUser);
-
             localStorage.setItem(
               "croissance_user",
               JSON.stringify(appUser)
             );
           } else {
             setUser(null);
-            localStorage.removeItem(
-              "croissance_user"
-            );
+            localStorage.removeItem("croissance_user");
           }
         } catch (error) {
-          console.error(
-            "Authentication state error:",
-            error
-          );
-
+          console.error("Authentication state error:", error);
           setUser(null);
-          localStorage.removeItem(
-            "croissance_user"
-          );
+          localStorage.removeItem("croissance_user");
         } finally {
           setIsLoading(false);
         }
@@ -202,14 +185,10 @@ export function AuthProvider({
    */
   const sendHeartbeat = useCallback(async () => {
     if (!user?.id) return;
-
     try {
       // Background heartbeat
     } catch (e) {
-      console.error(
-        "Heartbeat error:",
-        e
-      );
+      console.error("Heartbeat error:", e);
     }
   }, [user?.id]);
 
@@ -221,41 +200,26 @@ export function AuthProvider({
     pass: string
   ) => {
     try {
-      const userCredential =
-        await signInWithEmailAndPassword(
-          auth,
-          email,
-          pass
-        );
-
-      const firebaseUser =
-        userCredential.user;
-
-      const appUser =
-        await loadUserProfile(
-          firebaseUser
-        );
-
-      console.log(
-        "Logged-in application user:",
-        appUser
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        pass
       );
 
-      setUser(appUser);
+      const firebaseUser = userCredential.user;
+      const appUser = await loadUserProfile(firebaseUser);
 
+      console.log("Logged-in application user:", appUser);
+
+      setUser(appUser);
       localStorage.setItem(
         "croissance_user",
         JSON.stringify(appUser)
       );
     } catch (error: any) {
-      console.error(
-        "Firebase login failed:",
-        error
-      );
-
+      console.error("Firebase login failed:", error);
       throw new Error(
-        error.message ||
-          "Invalid email or password."
+        error.message || "Invalid email or password."
       );
     }
   };
@@ -267,20 +231,18 @@ export function AuthProvider({
     email: string,
     fullName: string
   ) => {
+    const emailClean = email.trim().toLowerCase();
     const appUser: User = {
       id: "google_" + Date.now(),
       email,
       fullName,
       name: fullName,
-      role: email
-        .toLowerCase()
-        .includes("admin")
+      role: ADMIN_EMAILS.includes(emailClean) || emailClean.includes("admin")
         ? "admin"
         : "user",
     };
 
     setUser(appUser);
-
     localStorage.setItem(
       "croissance_user",
       JSON.stringify(appUser)
@@ -294,17 +256,11 @@ export function AuthProvider({
     try {
       await signOut(auth);
     } catch (error) {
-      console.error(
-        "Firebase logout error:",
-        error
-      );
+      console.error("Firebase logout error:", error);
     }
 
     setUser(null);
-
-    localStorage.removeItem(
-      "croissance_user"
-    );
+    localStorage.removeItem("croissance_user");
   };
 
   return (
@@ -323,21 +279,19 @@ export function AuthProvider({
   );
 }
 
-export const useAuth =
-  (): AuthContextType => {
-    const context =
-      useContext(AuthContext);
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
 
-    if (!context) {
-      return {
-        user: null,
-        login: async () => {},
-        loginWithGoogle: async () => {},
-        logout: () => {},
-        isLoading: false,
-        sendHeartbeat: async () => {},
-      };
-    }
+  if (!context) {
+    return {
+      user: null,
+      login: async () => {},
+      loginWithGoogle: async () => {},
+      logout: () => {},
+      isLoading: false,
+      sendHeartbeat: async () => {},
+    };
+  }
 
-    return context;
-  };
+  return context;
+};
