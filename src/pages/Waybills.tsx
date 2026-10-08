@@ -332,11 +332,11 @@ export default function Waybills() {
         <div className="flex flex-wrap gap-4 text-xs bg-blue-950/60 px-4 py-2.5 rounded-lg border border-blue-800/50">
           <div>
             <span className="text-gray-400 block">Bank Name:</span>
-            <strong className="text-white">{settings.bankName || "Access Bank / Zenith Bank"}</strong>
+            <strong className="text-white">{settings.bankName || "FCMB"}</strong>
           </div>
           <div>
             <span className="text-gray-400 block">Account Number:</span>
-            <strong className="text-amber-300 font-mono">{settings.accountNumber || "0123456789"}</strong>
+            <strong className="text-amber-300 font-mono">{settings.accountNumber || "3429883013"}</strong>
           </div>
           <div>
             <span className="text-gray-400 block">Account Name:</span>
