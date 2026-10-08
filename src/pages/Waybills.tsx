@@ -17,7 +17,8 @@ import {
   Plus,
   Trash2,
   Building2,
-  ArrowUpRight
+  ArrowUpRight,
+  Calendar
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -25,6 +26,7 @@ export default function Waybills() {
   const { sales = [], customers = [], products = [], settings, apiCall, refreshData } = useContext(DataContext) as any;
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterDate, setFilterDate] = useState("");
   const [selectedSaleForWaybill, setSelectedSaleForWaybill] = useState<Sale | null>(null);
   const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState<Sale | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -33,7 +35,6 @@ export default function Waybills() {
   const [isCreatingWaybill, setIsCreatingWaybill] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
   
-  // Extended item state to track both retail and wholesale prices per row
   const [waybillItems, setWaybillItems] = useState<{ 
     productId: string; 
     productName: string; 
@@ -53,7 +54,7 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter and chronologically sort sales with deep item-name search (LPG, AGO, etc.)
+  // Filter and chronologically sort sales with keyword search & date search
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
       const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
@@ -64,7 +65,7 @@ export default function Waybills() {
         item.productName?.toLowerCase().includes(search)
       );
 
-      return (
+      const matchesSearch = 
         !searchTerm ||
         waybillNum.toLowerCase().includes(search) ||
         sale.invoiceNumber.toLowerCase().includes(search) ||
@@ -72,8 +73,16 @@ export default function Waybills() {
         (sale.vehicleNumber && sale.vehicleNumber.toLowerCase().includes(search)) ||
         (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
         (sale.deliveryAddress && sale.deliveryAddress.toLowerCase().includes(search)) ||
-        matchesItems
-      );
+        matchesItems;
+
+      // Date matching filter (checking YYYY-MM-DD format)
+      let matchesDate = true;
+      if (filterDate && sale.date) {
+        const saleDateStr = new Date(sale.date).toISOString().split("T")[0];
+        matchesDate = saleDateStr === filterDate;
+      }
+
+      return matchesSearch && matchesDate;
     });
 
     return filtered.sort((a, b) => {
@@ -81,7 +90,7 @@ export default function Waybills() {
       const dateB = new Date(b.date || 0).getTime();
       return dateB - dateA;
     });
-  }, [sales, searchTerm]);
+  }, [sales, searchTerm, filterDate]);
 
   const totalUnitsDispatched = useMemo(() => {
     return waybillsList.reduce((sum, s) => {
@@ -90,7 +99,6 @@ export default function Waybills() {
     }, 0);
   }, [waybillsList]);
 
-  // Add product to custom waybill builder with both prices visible
   const handleAddProductRow = (productId: string) => {
     const prod = products.find((p: Product) => p.id === productId);
     if (!prod) return;
@@ -186,7 +194,6 @@ export default function Waybills() {
 
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Customer";
 
-      // Include completed status and flags so it registers correctly across Invoices and Sales lists
       const newSalePayload = {
         invoiceNumber,
         waybillNumber,
@@ -368,17 +375,39 @@ export default function Waybills() {
         </div>
       </div>
 
-      {/* Search and Filters (Now searches products like LPG, AGO, etc.) */}
+      {/* Search and Date Filter Bar */}
       <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by Waybill #, Invoice #, Product (LPG, AGO), Consignee..."
+            placeholder="Search Waybill #, Invoice #, Product (LPG, AGO)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
           />
+        </div>
+
+        {/* Date Filter Input */}
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Calendar className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-gray-700 font-medium cursor-pointer"
+            />
+          </div>
+          {filterDate && (
+            <button
+              type="button"
+              onClick={() => setFilterDate("")}
+              className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            >
+              Clear Date
+            </button>
+          )}
         </div>
       </div>
 
@@ -676,7 +705,7 @@ export default function Waybills() {
 
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* Download PDF button */}
+                        {/* Download PDF button (Available for both user and admin) */}
                         <button
                           onClick={(e) => handleQuickDownload(sale, e)}
                           className="p-1.5 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
@@ -689,7 +718,7 @@ export default function Waybills() {
                           )}
                         </button>
 
-                        {/* Print button */}
+                        {/* Print button (Available for both user and admin) */}
                         <button
                           onClick={(e) => handleQuickPrint(sale, e)}
                           className="p-1.5 text-gray-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
@@ -698,11 +727,11 @@ export default function Waybills() {
                           <Printer className="w-4 h-4" />
                         </button>
 
-                        {/* Edit & View Waybill */}
+                        {/* View & Edit */}
                         <button
                           onClick={() => setSelectedSaleForWaybill(sale)}
                           className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                          title="Edit Logistics & View Waybill"
+                          title="View & Edit Waybill"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>View &amp; Edit</span>
