@@ -3,7 +3,7 @@ import { DataContext } from "../components/Layout";
 import { useAuth } from "../store/AuthContext";
 import { apiCall } from "../lib/api";
 import { Product, Customer, SaleItem, Sale } from "../types";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, formatDate } from "../lib/utils";
 import Receipt from "../components/Receipt";
 import { printReceipt } from "../lib/receiptPrinter";
 import { 
@@ -246,83 +246,11 @@ export default function POS() {
   const subtotal = cart.reduce((sum, item) => sum + (item.total || 0), 0);
   const total = Math.max(0, subtotal - discount);
 
-  // Convert all supported date/timestamp formats into a JavaScript Date.
-  const getSaleDate = (sale: any): Date => {
-    const value = sale?.date || sale?.createdAt || sale?.timestamp;
-
-    if (!value) return new Date(0);
-
-    // Firestore Timestamp
-    if (typeof value?.toDate === "function") {
-      return value.toDate();
-    }
-
-    // Firestore timestamp-like object
-    if (typeof value === "object" && value.seconds !== undefined) {
-      return new Date(Number(value.seconds) * 1000);
-    }
-
-    const parsed = new Date(value);
-    return isNaN(parsed.getTime()) ? new Date(0) : parsed;
-  };
-
-  // Display transaction time in the browser/computer's local timezone.
-  const formatSaleDateTime = (sale: any): string => {
-    const date = getSaleDate(sale);
-
-    if (date.getTime() === 0) return "Date unavailable";
-
-    return date.toLocaleString("en-NG", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true
-    });
-  };
-
-  const isReceiptPrinted = (sale: any): boolean => {
-    return sale?.receiptPrinted === true;
-  };
-
-  const isSuccessfulSale = (sale: any): boolean => {
-    return (
-      sale?.paymentStatus === "Completed" ||
-      sale?.paymentStatus === "Success"
-    );
-  };
-
-  // Pending/failed transactions are now strictly based on an unprinted receipt.
-  const isUnprintedTransaction = (sale: any): boolean => {
-    const status = sale?.paymentStatus;
-
-    return (
-      !isReceiptPrinted(sale) &&
-      (
-        status === "Pending" ||
-        status === "Failed" ||
-        !status
-      )
-    );
-  };
-
-  const completedSales = useMemo(() => {
-    return (sales as Sale[])
-      .filter(s => isSuccessfulSale(s))
-      .sort(
-        (a, b) =>
-          getSaleDate(b).getTime() - getSaleDate(a).getTime()
-      );
+  const lastCompletedSale = useMemo(() => {
+    const completedList = (sales as Sale[]).filter(s => s.paymentStatus === "Completed" || s.paymentStatus === "Success");
+    if (completedList.length === 0) return sales.length > 0 ? sales[sales.length - 1] : null;
+    return completedList.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())[0];
   }, [sales]);
-
-  const lastCompletedSale = completedSales[0] || null;
-
-  // Latest five successful transactions shown directly on the POS page.
-  const recentTransactions = useMemo(() => {
-    return completedSales.slice(0, 5);
-  }, [completedSales]);
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -349,13 +277,7 @@ export default function POS() {
         discount,
         totalAmount: total,
         paymentMethod,
-
-        // The transaction remains pending until receipt printing succeeds.
-        paymentStatus: "Pending",
-        receiptPrinted: false,
-
-        // Exact transaction creation time.
-        date: new Date().toISOString()
+        paymentStatus: "Pending"
       };
 
       const savedSale = await apiCall("addSale", initialSalePayload);
@@ -378,37 +300,15 @@ export default function POS() {
       await refreshData();
 
       try {
-        // Only complete the transaction after the receipt is successfully printed.
         await printReceipt(savedSale, settings, "thermal80");
-
-        const updatedSale = {
-          ...savedSale,
-          paymentStatus: "Completed",
-          receiptPrinted: true,
-          printedAt: new Date().toISOString()
-        };
-
-        await apiCall("updateSale", updatedSale);
+        const updatedSale = { ...savedSale, paymentStatus: "Completed" };
+        await apiCall("updateSale", updatedSale).catch(() => {});
         await refreshData();
-
         setCompletedSale(updatedSale);
       } catch (printErr) {
         console.warn("Printer failed:", printErr);
-
-        const pendingSale = {
-          ...savedSale,
-          paymentStatus: "Pending",
-          receiptPrinted: false,
-          printError: true
-        };
-
-        await apiCall("updateSale", pendingSale).catch(() => {});
-        await refreshData();
-
-        setError(
-          "Receipt was not printed. The transaction has been saved under Pending / Unprinted Transactions."
-        );
-        setCompletedSale(pendingSale);
+        setError("Receipt printer failed! Transaction saved as pending.");
+        setCompletedSale(savedSale);
       }
     } catch (err: any) {
       setError(err.message || "Failed to process sale.");
@@ -418,23 +318,11 @@ export default function POS() {
   };
 
   const filteredTransactions = useMemo(() => {
-    return (sales as Sale[])
-      .filter(s => {
-        if (transactionTabFilter === "completed") {
-          return isSuccessfulSale(s);
-        }
-
-        if (transactionTabFilter === "pending") {
-          // ONLY show transactions whose receipt has not been printed.
-          return isUnprintedTransaction(s);
-        }
-
-        return true;
-      })
-      .sort(
-        (a, b) =>
-          getSaleDate(b).getTime() - getSaleDate(a).getTime()
-      );
+    return (sales as Sale[]).filter(s => {
+      if (transactionTabFilter === "completed") return s.paymentStatus === "Completed" || s.paymentStatus === "Success";
+      if (transactionTabFilter === "pending") return s.paymentStatus === "Pending" || !s.paymentStatus || s.paymentStatus === "Failed";
+      return true;
+    }).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
   }, [sales, transactionTabFilter]);
 
   return (
@@ -511,79 +399,6 @@ export default function POS() {
               className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs sm:text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-600"
             />
           </div>
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-xl shadow-2xs border border-gray-100 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <h2 className="font-bold text-sm text-gray-900">
-              Recent Transactions
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setTransactionTabFilter("completed");
-              setShowTransactionsModal(true);
-            }}
-            className="text-xs font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
-          >
-            View All
-          </button>
-        </div>
-
-        <div className="divide-y divide-gray-100">
-          {recentTransactions.length === 0 ? (
-            <div className="px-4 py-5 text-center text-xs text-gray-400">
-              No recent completed transactions.
-            </div>
-          ) : (
-            recentTransactions.map((tx: Sale) => (
-              <div
-                key={tx.id}
-                className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-gray-50"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs text-blue-900">
-                      {tx.invoiceNumber}
-                    </span>
-
-                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold">
-                      Completed
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-gray-600 truncate">
-                    {tx.customerName || "Walk-in Customer"}
-                  </p>
-
-                  <p className="text-[10px] text-gray-400">
-                    {formatSaleDateTime(tx)}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-bold text-xs text-gray-900">
-                    {formatCurrency(tx.totalAmount)}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => setCompletedSale(tx)}
-                    className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg cursor-pointer"
-                    title="View receipt"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
         </div>
       </div>
 
@@ -886,29 +701,13 @@ export default function POS() {
                 {filteredTransactions.map((tx: Sale) => (
                   <tr key={tx.id} className="hover:bg-gray-50">
                     <td className="px-3 py-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
-                    <td className="px-3 py-3 text-gray-500">
-                      {formatSaleDateTime(tx)}
-                    </td>
+                    <td className="px-3 py-3 text-gray-500">{formatDate(tx.date)}</td>
                     <td className="px-3 py-3 font-semibold text-gray-800">{tx.customerName || "Walk-in Customer"}</td>
                     <td className="px-3 py-3 font-bold text-gray-900">{formatCurrency(tx.totalAmount)}</td>
                     <td className="px-3 py-3">
-                      <div className="flex flex-col items-start gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                            isSuccessfulSale(tx)
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-amber-100 text-amber-800"
-                          }`}
-                        >
-                          {tx.paymentStatus || "Pending"}
-                        </span>
-
-                        {!isReceiptPrinted(tx) && (
-                          <span className="text-[9px] font-semibold text-red-600">
-                            Receipt not printed
-                          </span>
-                        )}
-                      </div>
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${tx.paymentStatus === "Completed" || tx.paymentStatus === "Success" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                        {tx.paymentStatus || "Completed"}
+                      </span>
                     </td>
                     <td className="px-3 py-3 text-center">
                       <button
