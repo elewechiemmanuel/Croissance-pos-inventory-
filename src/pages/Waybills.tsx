@@ -86,7 +86,8 @@ export default function Waybills() {
     const wholesalePrice = prod.wholesalePrice || prod.sellingPrice || 0;
     
     // Auto-select wholesale if customer type is Wholesale, else retail
-    const defaultType: "retail" | "wholesale" = selectedCustomer?.type === "Wholesale" ? "wholesale" : "retail";
+    const custType = selectedCustomer?.type || selectedCustomer?.pricingTier;
+    const defaultType: "retail" | "wholesale" = custType === "Wholesale" ? "wholesale" : "retail";
     const initialUnitPrice = defaultType === "wholesale" ? wholesalePrice : retailPrice;
 
     setWaybillItems(prev => {
@@ -171,11 +172,13 @@ export default function Waybills() {
       const invoiceNumber = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
       const waybillNumber = `WB-${Math.floor(100000 + Math.random() * 900000)}`;
 
+      const customerName = selectedCustomer.fullName || selectedCustomer.name || "Customer";
+
       const newSalePayload = {
         invoiceNumber,
         waybillNumber,
         customerId: selectedCustomer.id,
-        customerName: selectedCustomer.fullName,
+        customerName,
         customerPhone: selectedCustomer.phone || "",
         deliveryAddress: deliveryAddress || selectedCustomer.address || "Customer Location",
         vehicleNumber: vehicleNumber || "PENDING VEHICLE",
@@ -398,17 +401,21 @@ export default function Waybills() {
                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600"
                     value={selectedCustomer?.id || ""}
                     onChange={(e) => {
-                      const found = customers.find((c: Customer) => c.id === e.target.value);
+                      const found = customers.find((c: any) => c.id === e.target.value);
                       setSelectedCustomer(found || null);
                       if (found?.address) setDeliveryAddress(found.address);
                     }}
                   >
                     <option value="">-- Choose Customer --</option>
-                    {customers.map((c: Customer) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName} {c.type ? `(${c.type})` : ""}
-                      </option>
-                    ))}
+                    {customers.map((c: any) => {
+                      const displayName = c.fullName || c.name || "Unnamed Customer";
+                      const displayType = c.type || c.pricingTier || "";
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {displayName} {displayType ? `(${displayType})` : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
