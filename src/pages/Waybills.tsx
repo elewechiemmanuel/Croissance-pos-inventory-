@@ -53,19 +53,26 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter and chronologically sort sales (newest first)
+  // Filter and chronologically sort sales with deep item-name search (LPG, AGO, etc.)
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
       const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
       const search = searchTerm.toLowerCase();
+
+      // Check if any item in the sale matches the search term (e.g. LPG, AGO)
+      const matchesItems = sale.items?.some(item => 
+        item.productName?.toLowerCase().includes(search)
+      );
+
       return (
         !searchTerm ||
         waybillNum.toLowerCase().includes(search) ||
         sale.invoiceNumber.toLowerCase().includes(search) ||
-        sale.customerName.toLowerCase().includes(search) ||
+        sale.customerName?.toLowerCase().includes(search) ||
         (sale.vehicleNumber && sale.vehicleNumber.toLowerCase().includes(search)) ||
         (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
-        (sale.deliveryAddress && sale.deliveryAddress.toLowerCase().includes(search))
+        (sale.deliveryAddress && sale.deliveryAddress.toLowerCase().includes(search)) ||
+        matchesItems
       );
     });
 
@@ -91,7 +98,6 @@ export default function Waybills() {
     const retailPrice = prod.retailPrice || prod.sellingPrice || 0;
     const wholesalePrice = prod.wholesalePrice || prod.sellingPrice || 0;
     
-    // Auto-select wholesale if customer type is Wholesale, else retail
     const custType = selectedCustomer?.type || selectedCustomer?.pricingTier;
     const defaultType: "retail" | "wholesale" = custType === "Wholesale" ? "wholesale" : "retail";
     const initialUnitPrice = defaultType === "wholesale" ? wholesalePrice : retailPrice;
@@ -180,6 +186,7 @@ export default function Waybills() {
 
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Customer";
 
+      // Include completed status and flags so it registers correctly across Invoices and Sales lists
       const newSalePayload = {
         invoiceNumber,
         waybillNumber,
@@ -195,7 +202,7 @@ export default function Waybills() {
         discount: 0,
         totalAmount: calculatedSubtotal,
         paymentMethod: "Bank Transfer",
-        paymentStatus: "Pending",
+        paymentStatus: "Completed",
         deliveryNotes: "Goods Received in Good Condition & Proper Order. Inspect all seals upon delivery.",
         date: new Date().toISOString()
       };
@@ -361,13 +368,13 @@ export default function Waybills() {
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Search and Filters (Now searches products like LPG, AGO, etc.) */}
       <div className="bg-white p-4 rounded-xl shadow-xs border border-gray-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by Waybill #, Invoice #, Consignee, Vehicle..."
+            placeholder="Search by Waybill #, Invoice #, Product (LPG, AGO), Consignee..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
