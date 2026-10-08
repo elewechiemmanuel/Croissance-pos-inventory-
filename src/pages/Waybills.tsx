@@ -56,13 +56,10 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter sales to show ONLY those with a waybill number assigned or created here
+  // Updated filter: Shows all sales records so you can immediately see your generated waybills and dispatches
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
-      // Must have an explicit waybillNumber or be designated as a waybill/dispatch
-      if (!sale.waybillNumber) return false;
-
-      const waybillNum = sale.waybillNumber;
+      const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
       const search = searchTerm.toLowerCase();
 
       const matchesItems = sale.items?.some(item => 
@@ -733,111 +730,4 @@ export default function Waybills() {
                     <td className="px-5 py-4">
                       <div className="font-semibold text-gray-800">{sale.customerName || "Customer"}</div>
                       {sale.customerPhone && (
-                        <div className="text-[11px] text-gray-400">{sale.customerPhone}</div>
-                      )}
-                    </td>
-
-                    <td className="px-5 py-4 text-xs">
-                      <div className="flex items-center gap-1 text-gray-700">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="truncate max-w-[200px]">
-                          {sale.deliveryAddress || sale.customerAddress || "Local Depot / Station Pickup"}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        Vehicle: <strong className="text-gray-800">{sale.vehicleNumber || "Standard Logistics"}</strong>
-                        {sale.driverName && <span> &bull; {sale.driverName}</span>}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-xs">
-                      <span className="px-2 py-0.5 bg-blue-50 text-blue-800 font-bold rounded-full text-[11px]">
-                        {sale.paymentMethod || "Bank Transfer"}
-                      </span>
-                    </td>
-
-                    <td className="px-5 py-4 text-xs font-medium text-gray-700">
-                      <span className="font-bold text-blue-900">{totalQty} units</span> across {sale.items.length} item{sale.items.length !== 1 ? "s" : ""}
-                      <div className="text-[11px] text-gray-400 truncate max-w-[180px]">
-                        {sale.items.map(i => `${i.quantity}x ${i.productName}`).join(", ")}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={(e) => handleQuickDownload(sale, e)}
-                          className="p-1.5 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
-                          title="Download Waybill PDF"
-                        >
-                          {downloadingId === sale.id ? (
-                            <Check className="w-4 h-4 text-emerald-600" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
-                        </button>
-
-                        <button
-                          onClick={(e) => handleQuickPrint(sale, e)}
-                          className="p-1.5 text-gray-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                          title="Print Waybill"
-                        >
-                          <Printer className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          onClick={() => setSelectedSaleForWaybill(sale)}
-                          className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                          title="View & Edit Waybill"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View &amp; Edit</span>
-                        </button>
-
-                        <button
-                          onClick={() => setSelectedSaleForInvoice(sale)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                          title="View Linked Invoice"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {waybillsList.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-gray-400">
-                    <Truck className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                    <p className="font-semibold text-gray-600 text-base">No Waybills Dispatched</p>
-                    <p className="text-xs text-gray-400 mt-1">Use the "Create Custom Waybill" button above to record and track new waybills.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Waybill Modal */}
-      {selectedSaleForWaybill && (
-        <WaybillModal
-          sale={selectedSaleForWaybill}
-          settings={settings}
-          onClose={() => setSelectedSaleForWaybill(null)}
-        />
-      )}
-
-      {/* Invoice Modal */}
-      {selectedSaleForInvoice && (
-        <InvoiceModal
-          sale={selectedSaleForInvoice}
-          settings={settings}
-          onClose={() => setSelectedSaleForInvoice(null)}
-        />
-      )}
-    </div>
-  );
-}
+                        <div className="text-[11px] text-gray
