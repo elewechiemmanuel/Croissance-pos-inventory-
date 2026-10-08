@@ -34,6 +34,7 @@ type PricingTier = 'Retail' | 'Wholesale';
 interface Customer {
   id: string;
   name: string;
+  fullName: string;
   email: string;
   phone: string;
   address: string;
@@ -169,13 +170,12 @@ const Customers: React.FC = () => {
         const customerData: Customer[] = snapshot.docs.map(
           (customerDoc) => {
             const data = customerDoc.data();
+            const customerName = typeof data.name === 'string' ? data.name : (typeof data.fullName === 'string' ? data.fullName : '');
 
             return {
               id: customerDoc.id,
-              name:
-                typeof data.name === 'string'
-                  ? data.name
-                  : '',
+              name: customerName,
+              fullName: customerName,
               email:
                 typeof data.email === 'string'
                   ? data.email
@@ -245,7 +245,7 @@ const Customers: React.FC = () => {
 
     if (
       email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+\$/.test(email)
     ) {
       showError('Please enter a valid email address.');
       return;
@@ -269,6 +269,7 @@ const Customers: React.FC = () => {
     try {
       await addDoc(collection(db, 'customers'), {
         name,
+        fullName: name, // Saved to satisfy components expecting fullName
         email,
         phone,
         address,
@@ -311,7 +312,7 @@ const Customers: React.FC = () => {
 
     if (
       email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+\$/.test(email)
     ) {
       showError('Please enter a valid email address.');
       return;
@@ -333,6 +334,7 @@ const Customers: React.FC = () => {
 
       await updateDoc(customerRef, {
         name,
+        fullName: name, // Keep both updated
         email,
         phone,
         address,
