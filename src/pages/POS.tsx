@@ -3,7 +3,7 @@ import { DataContext } from "../components/Layout";
 import { useAuth } from "../store/AuthContext";
 import { apiCall } from "../lib/api";
 import { Product, Customer, SaleItem, Sale } from "../types";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, formatDate } from "../lib/utils";
 import Receipt from "../components/Receipt";
 import { printReceipt } from "../lib/receiptPrinter";
 import { 
@@ -14,7 +14,10 @@ import {
   UserCheck, 
   AlertCircle, 
   Search, 
-  Printer
+  Printer,
+  CheckCircle,
+  Clock,
+  XCircle
 } from "lucide-react";
 
 export default function POS() {
@@ -31,6 +34,10 @@ export default function POS() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
+  
+  // Modal / Drawer state for viewing transactions tabs (All, Successful, Pending/Failed)
+  const [showTransactionsModal, setShowTransactionsModal] = useState(false);
+  const [transactionTabFilter, setTransactionTabFilter] = useState<"all" | "completed" | "pending">("all");
 
   // Fallback defaults if not set on the product
   const DEFAULT_RETAIL_PRICE = 1250;
@@ -42,7 +49,7 @@ export default function POS() {
   const AGO_WHOLESALE_PRICE = 2000;
   const AGO_DEFAULT_STOCK = 2690;
 
-  // Safely inject AGO alongside existing database products (like LPG) without overwriting them
+  // Safely inject AGO alongside existing database products without overwriting them
   const combinedProducts = useMemo(() => {
     const virtualAgoProduct: Product = {
       id: "prod_ago_guaranteed_default",
@@ -96,8 +103,6 @@ export default function POS() {
     setError("");
      
     const isAgo = product.name?.toUpperCase().includes("AGO") || product.category?.toUpperCase().includes("AGO");
-    
-    // Pull price dynamically from the product object, checking sellingPrice first, fallback to defaults if undefined
     const unitPrice = isWholesale 
       ? (product.wholesalePrice ?? (isAgo ? AGO_WHOLESALE_PRICE : DEFAULT_WHOLESALE_PRICE))
       : (product.sellingPrice ?? product.retailPrice ?? (isAgo ? AGO_RETAIL_PRICE : DEFAULT_RETAIL_PRICE));
@@ -240,9 +245,15 @@ export default function POS() {
   const subtotal = cart.reduce((sum, item) => sum + (item.total || 0), 0);
   const total = Math.max(0, subtotal - discount);
 
-  const lastSale = completedSale || (sales.length > 0 ? sales[sales.length - 1] : null);
+  // Get last printed successful receipt
+  const lastCompletedSale = useMemo(() => {
+    const completedList = (sales as Sale[]).filter(s => s.paymentStatus === "Completed" || s.paymentStatus === "Success");
+    if (completedList.length === 0) return sales.length > 0 ? sales[sales.length - 1] : null;
+    return completedList.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())[0];
+  }, [sales]);
 
-  const handleCheckout = async (autoPrint: boolean = false) => {
+  // Handle Checkout with Printer Success / Failure logic
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
 
     const hasZeroQty = cart.some(item => !item.quantity || item.quantity <= 0);
@@ -256,7 +267,9 @@ export default function POS() {
 
     try {
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Walk-in Customer";
-      const salePayload = {
+      
+      // Phase 1: Save transaction as PENDING first and deduct stock immediately
+      const initialSalePayload = {
         customerId: selectedCustomer.id,
         customerName,
         staffId: user?.id,
@@ -266,11 +279,12 @@ export default function POS() {
         discount,
         totalAmount: total,
         paymentMethod,
-        paymentStatus: "Completed"
+        paymentStatus: "Pending" // Starts as pending until print succeeds
       };
 
-      const result = await apiCall("addSale", salePayload);
+      const savedSale = await apiCall("addSale", initialSalePayload);
 
+      // Deduct stock balance immediately
       for (const item of cart) {
         const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
         if (targetProduct && targetProduct.id !== "prod_ago_guaranteed_default") {
@@ -284,20 +298,24 @@ export default function POS() {
         }
       }
 
-      setCompletedSale(result);
       setCart([]);
       setDiscount(0);
-       
       await refreshData();
 
-      if (autoPrint) {
-        setTimeout(async () => {
-          try {
-            await printReceipt(result, settings, "thermal80");
-          } catch (pErr) {
-            console.warn("Auto-print error:", pErr);
-          }
-        }, 300);
+      // Phase 2: Attempt to Print Receipt
+      try {
+        await printReceipt(savedSale, settings, "thermal80");
+
+        // If printer succeeds, update status to Completed (Success)
+        const updatedSale = { ...savedSale, paymentStatus: "Completed" };
+        await apiCall("updateSale", updatedSale).catch(() => {});
+        await refreshData();
+
+        setCompletedSale(updatedSale);
+      } catch (printErr) {
+        console.warn("Printer failed, transaction kept as Pending/Failed:", printErr);
+        setError("Receipt printer failed! Transaction saved under Pending/Failed transactions. You can retry printing or cancel/delete it.");
+        setCompletedSale(savedSale); // Opens modal/receipt so user can retry
       }
     } catch (err: any) {
       setError(err.message || "Failed to process sale.");
@@ -305,6 +323,43 @@ export default function POS() {
       setIsProcessing(false);
     }
   };
+
+  // Handle deleting/canceling a pending/failed transaction and restoring stock
+  const handleDeletePendingSale = async (saleToCancel: Sale) => {
+    if (!window.confirm("Are you sure you want to cancel/delete this pending transaction? Stock will be restored.")) return;
+
+    try {
+      // 1. Restore product stock balances
+      for (const item of saleToCancel.items) {
+        const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
+        if (targetProduct && targetProduct.id !== "prod_ago_guaranteed_default") {
+          const isAgo = targetProduct.name?.toUpperCase().includes("AGO") || targetProduct.category?.toUpperCase().includes("AGO");
+          const currentStockVal = targetProduct.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
+          const restoredStock = currentStockVal + item.quantity;
+          await apiCall("updateProduct", {
+            id: targetProduct.id,
+            currentStock: restoredStock
+          });
+        }
+      }
+
+      // 2. Delete/Remove sale record via apiCall
+      await apiCall("deleteSale", { id: saleToCancel.id });
+      await refreshData();
+      setCompletedSale(null);
+    } catch (err: any) {
+      setError(err.message || "Failed to delete transaction.");
+    }
+  };
+
+  // Filtered sales for the Transactions Modal
+  const filteredTransactions = useMemo(() => {
+    return (sales as Sale[]).filter(s => {
+      if (transactionTabFilter === "completed") return s.paymentStatus === "Completed" || s.paymentStatus === "Success";
+      if (transactionTabFilter === "pending") return s.paymentStatus === "Pending" || !s.paymentStatus || s.paymentStatus === "Failed";
+      return true; // "all"
+    }).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  }, [sales, transactionTabFilter]);
 
   return (
     <div className="h-[calc(100vh-2rem)] flex flex-col lg:flex-row gap-5 -m-4 md:-m-8 p-3 md:p-6 bg-gray-50">
@@ -318,17 +373,27 @@ export default function POS() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            {lastSale && (
+          {/* Action buttons matching the requested layout */}
+          <div className="flex flex-wrap items-center gap-2">
+            {lastCompletedSale && (
               <button
                 type="button"
-                onClick={() => setCompletedSale(lastSale)}
+                onClick={() => setCompletedSale(lastCompletedSale)}
                 className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
               >
                 <Printer className="w-3.5 h-3.5 text-blue-600" />
                 <span>Reprint Last Receipt</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setShowTransactionsModal(true)}
+              className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>Transactions (All / Pending / Successful)</span>
+            </button>
           </div>
         </div>
          
@@ -355,7 +420,7 @@ export default function POS() {
                 const displayType = c.type || c.pricingTier || "";
                 return (
                   <option key={c.id} value={c.id}>
-                    {displayName} {displayType === 'Wholesale' ? `(Wholesale${c.businessName ? ` - ${c.businessName}` : ''})` : displayType ? `(${displayType})` : ''}
+                    {displayName} {displayType === 'Wholesale' ? `(Wholesale${c.businessName ? ` - \${c.businessName}` : ''})` : displayType ? `(${displayType})` : ''}
                   </option>
                 );
               })}
@@ -415,7 +480,6 @@ export default function POS() {
             const stockVal = product.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
             const isOutOfStock = stockVal <= 0;
              
-            // Read live price checking sellingPrice first (from Products page), fallback safely
             const activeRetailPrice = product.sellingPrice ?? product.retailPrice ?? (isAgo ? AGO_RETAIL_PRICE : DEFAULT_RETAIL_PRICE);
             const activeWholesalePrice = product.wholesalePrice ?? (isAgo ? AGO_WHOLESALE_PRICE : DEFAULT_WHOLESALE_PRICE);
 
@@ -605,7 +669,7 @@ export default function POS() {
         <div className="pt-1 grid grid-cols-1 gap-2">
         <button 
             type="button"
-            onClick={() => handleCheckout(true)}
+            onClick={handleCheckout}
             disabled={cart.length === 0 || isProcessing}
             className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-sm flex justify-center items-center gap-2 text-sm cursor-pointer"
         >
@@ -616,12 +680,124 @@ export default function POS() {
     </div>
     </div>
 
+    {/* Transactions Modal (All / Successful / Pending/Failed) */}
+    {showTransactionsModal && (
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="p-4 bg-blue-950 text-white flex justify-between items-center">
+            <h3 className="font-bold text-base flex items-center gap-2">
+              <Clock className="w-5 h-5 text-amber-400" />
+              <span>POS Transactions History</span>
+            </h3>
+            <button 
+              onClick={() => setShowTransactionsModal(false)}
+              className="text-gray-300 hover:text-white font-bold text-lg px-2 cursor-pointer"
+            >
+              &times;
+            </button>
+          </div>
+
+          <div className="p-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setTransactionTabFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "all" ? "bg-blue-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
+              >
+                All Transactions
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransactionTabFilter("completed")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "completed" ? "bg-emerald-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
+              >
+                Successful
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransactionTabFilter("pending")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "pending" ? "bg-amber-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
+              >
+                Pending / Failed
+              </button>
+            </div>
+            <span className="text-xs text-gray-500 font-medium">Showing {filteredTransactions.length} records</span>
+          </div>
+
+          <div className="p-4 overflow-y-auto flex-1 space-y-2">
+            {filteredTransactions.map((tx: Sale) => {
+              const isPending = tx.paymentStatus === "Pending" || !tx.paymentStatus || tx.paymentStatus === "Failed";
+              return (
+                <div key={tx.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-gray-200 text-xs shadow-2xs hover:border-blue-300 transition-colors">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-blue-950">{tx.invoiceNumber}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isPending ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {isPending ? 'Pending / Failed' : 'Successful'}
+                      </span>
+                    </div>
+                    <div className="text-gray-500 text-[11px]">
+                      Customer: <strong className="text-gray-700">{tx.customerName || "Walk-in Customer"}</strong> &bull; {formatDate(tx.date)}
+                    </div>
+                    <div className="text-gray-400 text-[11px]">
+                      {tx.items?.map(i => `${i.quantity}x ${i.productName}`).join(", ")}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="font-bold text-blue-950 text-sm">{formatCurrency(tx.totalAmount)}</div>
+                      <div className="text-[10px] text-gray-400">{tx.paymentMethod}</div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowTransactionsModal(false);
+                          setCompletedSale(tx);
+                        }}
+                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg font-bold flex items-center gap-1 cursor-pointer"
+                        title="View or Print Receipt"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Receipt</span>
+                      </button>
+
+                      {isPending && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePendingSale(tx)}
+                          className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg font-bold flex items-center gap-1 cursor-pointer"
+                          title="Cancel/Delete Transaction and Restore Stock"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete &amp; Restore</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredTransactions.length === 0 && (
+              <div className="text-center py-12 text-gray-400">
+                <Clock className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                <p className="font-medium text-sm">No transactions found for this filter.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
     {completedSale && (
-    <Receipt 
+      <Receipt 
         sale={completedSale} 
         settings={settings} 
         onClose={() => setCompletedSale(null)} 
-    />
+      />
     )}
    </div>
   );
