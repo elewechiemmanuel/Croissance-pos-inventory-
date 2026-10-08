@@ -18,10 +18,10 @@ import {
 } from "lucide-react";
 
 export default function POS() {
-  const { products = [], customers = [], settings = {}, sales = [], refreshData } = useContext(DataContext);
+  const { products = [], customers = [], settings = {}, sales = [], refreshData } = useContext(DataContext) as any;
   const { user } = useAuth();
 
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer>(customers[0] || { id: "cust_walkin", fullName: "Walk-in Customer", type: "Retail" });
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(customers[0] || { id: "cust_walkin", fullName: "Walk-in Customer", name: "Walk-in Customer", type: "Retail" });
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
@@ -255,9 +255,10 @@ export default function POS() {
     setError("");
 
     try {
+      const customerName = selectedCustomer.fullName || selectedCustomer.name || "Walk-in Customer";
       const salePayload = {
         customerId: selectedCustomer.id,
-        customerName: selectedCustomer.fullName,
+        customerName,
         staffId: user?.id,
         staffName: user?.fullName,
         items: cart,
@@ -341,18 +342,23 @@ export default function POS() {
                 className="w-full bg-transparent outline-none font-medium text-gray-800 text-sm cursor-pointer"
                 value={selectedCustomer.id}
                 onChange={(e) => {
-                  const cust = customers.find((c: Customer) => c.id === e.target.value) || customers[0];
-                  setSelectedCustomer(cust);
-                  if (cust.type !== "Wholesale" && paymentMethod === "Credit") {
+                  const cust = customers.find((c: any) => c.id === e.target.value) || customers[0];
+                  setSelectedCustomer(cust || { id: "cust_walkin", fullName: "Walk-in Customer", name: "Walk-in Customer", type: "Retail" });
+                  const custType = cust?.type || cust?.pricingTier;
+                  if (custType !== "Wholesale" && paymentMethod === "Credit") {
                     setPaymentMethod("Cash");
                   }
                 }}
             >
-              {customers.map((c: Customer) => (
-                <option key={c.id} value={c.id}>
-                  {c.fullName} {c.type === 'Wholesale' ? `(Wholesale${c.businessName ? ` - ${c.businessName}` : ''})` : ''}
-                </option>
-              ))}
+              {customers.map((c: any) => {
+                const displayName = c.fullName || c.name || "Unnamed Customer";
+                const displayType = c.type || c.pricingTier || "";
+                return (
+                  <option key={c.id} value={c.id}>
+                    {displayName} {displayType === 'Wholesale' ? `(Wholesale${c.businessName ? ` - ${c.businessName}` : ''})` : displayType ? `(${displayType})` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 

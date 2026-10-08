@@ -53,9 +53,9 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter sales
+  // Filter and chronologically sort sales (newest first)
   const waybillsList = useMemo(() => {
-    return (sales as Sale[]).filter((sale) => {
+    const filtered = (sales as Sale[]).filter((sale) => {
       const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
       const search = searchTerm.toLowerCase();
       return (
@@ -67,6 +67,12 @@ export default function Waybills() {
         (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
         (sale.deliveryAddress && sale.deliveryAddress.toLowerCase().includes(search))
       );
+    });
+
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.date || 0).getTime();
+      const dateB = new Date(b.date || 0).getTime();
+      return dateB - dateA;
     });
   }, [sales, searchTerm]);
 
@@ -604,7 +610,7 @@ export default function Waybills() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {[...waybillsList].reverse().map((sale: Sale) => {
+              {waybillsList.map((sale: Sale) => {
                 const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
                 const totalQty = sale.items.reduce((sum, i) => sum + (i.quantity || 0), 0);
                 return (
