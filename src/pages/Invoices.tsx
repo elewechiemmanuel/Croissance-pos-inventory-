@@ -7,7 +7,6 @@ import React, {
 } from "react";
 import { DataContext } from "../components/Layout";
 import { Sale } from "../types";
-import { formatDate } from "../lib/utils";
 import { downloadInvoicePdf, printInvoice } from "../lib/invoiceGenerator";
 import InvoiceModal from "../components/InvoiceModal";
 import Receipt from "../components/Receipt";
@@ -114,6 +113,25 @@ const getDateValue = (value: unknown): string => {
   }
 
   return "";
+};
+
+// Helper function to format date including accurate local time
+const formatDateTime = (value: unknown): string => {
+  const dateStr = getDateValue(value);
+  if (!dateStr) return "N/A";
+
+  const dateObj = new Date(dateStr);
+  if (isNaN(dateObj.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(dateObj);
 };
 
 export default function Invoices() {
@@ -319,10 +337,9 @@ export default function Invoices() {
     }
 
     try {
-      // Map sales data to clean rows for Excel
       const excelData = filteredInvoices.map((sale, index) => {
         const status = normalizeStatus(sale.paymentStatus);
-        const formattedDate = sale.date ? formatDate(getDateValue(sale.date)) : "N/A";
+        const formattedDate = sale.date ? formatDateTime(sale.date) : "N/A";
         
         const itemsSummary = (sale.items || [])
           .map((item) => `${item.quantity}x ${item.productName}`)
@@ -331,7 +348,7 @@ export default function Invoices() {
         return {
           "S/N": index + 1,
           "Invoice Number": sale.invoiceNumber || "N/A",
-          "Date": formattedDate,
+          "Date & Time": formattedDate,
           "Customer Name": sale.customerName || "Walk-in Customer",
           "Customer Phone": sale.customerPhone || "N/A",
           "Items Purchased": itemsSummary,
@@ -342,14 +359,12 @@ export default function Invoices() {
         };
       });
 
-      // Create worksheet and workbook
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       
-      // Auto-fit column widths for readability
       const columnWidths = [
         { wch: 6 },  // S/N
         { wch: 18 }, // Invoice Number
-        { wch: 15 }, // Date
+        { wch: 22 }, // Date & Time
         { wch: 22 }, // Customer Name
         { wch: 15 }, // Customer Phone
         { wch: 35 }, // Items Purchased
@@ -363,11 +378,9 @@ export default function Invoices() {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Transaction History");
 
-      // Generate file name with current date/filters timestamp
       const dateStr = new Date().toISOString().split("T")[0];
       const fileName = `Transaction_History_${statusFilter}_${dateStr}.xlsx`;
 
-      // Trigger download
       XLSX.writeFile(workbook, fileName);
     } catch (error) {
       console.error("Failed to export Excel file:", error);
@@ -608,7 +621,7 @@ export default function Invoices() {
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
               <tr>
                 <th className="px-5 py-3.5">Invoice #</th>
-                <th className="px-5 py-3.5">Date</th>
+                <th className="px-5 py-3.5">Date &amp; Time</th>
                 <th className="px-5 py-3.5">Customer</th>
                 <th className="px-5 py-3.5">Items</th>
                 <th className="px-5 py-3.5">Payment</th>
@@ -637,8 +650,8 @@ export default function Invoices() {
                       </button>
                     </td>
 
-                    <td className="px-5 py-4 text-xs text-gray-500">
-                      {sale.date ? formatDate(getDateValue(sale.date)) : "N/A"}
+                    <td className="px-5 py-4 text-xs text-gray-600 font-medium">
+                      {formatDateTime(sale.date)}
                     </td>
 
                     <td className="px-5 py-4 font-medium text-gray-800">
