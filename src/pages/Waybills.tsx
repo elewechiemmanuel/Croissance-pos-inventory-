@@ -34,6 +34,7 @@ export default function Waybills() {
   // New Dispatch Creation State
   const [isCreatingWaybill, setIsCreatingWaybill] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
+  const [recentlyCreatedSale, setRecentlyCreatedSale] = useState<Sale | null>(null);
   
   const [waybillItems, setWaybillItems] = useState<{ 
     productId: string; 
@@ -60,7 +61,6 @@ export default function Waybills() {
       const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
       const search = searchTerm.toLowerCase();
 
-      // Check if any item in the sale matches the search term (e.g. LPG, AGO)
       const matchesItems = sale.items?.some(item => 
         item.productName?.toLowerCase().includes(search)
       );
@@ -75,7 +75,6 @@ export default function Waybills() {
         (sale.deliveryAddress && sale.deliveryAddress.toLowerCase().includes(search)) ||
         matchesItems;
 
-      // Date matching filter (checking YYYY-MM-DD format)
       let matchesDate = true;
       if (filterDate && sale.date) {
         const saleDateStr = new Date(sale.date).toISOString().split("T")[0];
@@ -215,11 +214,11 @@ export default function Waybills() {
       };
 
       if (apiCall) {
-        await apiCall("addSale", newSalePayload);
+        const createdSale = await apiCall("addSale", newSalePayload);
         if (refreshData) await refreshData();
+        setRecentlyCreatedSale(createdSale || newSalePayload);
       }
 
-      setIsCreatingWaybill(false);
       setWaybillItems([]);
       setVehicleNumber("");
       setDriverName("");
@@ -232,14 +231,14 @@ export default function Waybills() {
     }
   };
 
-  const handleQuickDownload = (sale: Sale, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDownloadingId(sale.id);
+  const handleQuickDownload = (sale: Sale, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (sale.id) setDownloadingId(sale.id);
     const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
     const waybillData: WaybillData = {
       waybillNumber: waybillNum,
       invoiceNumber: sale.invoiceNumber,
-      date: sale.date,
+      date: sale.date || new Date().toISOString(),
       deliveryDate: new Date().toISOString(),
       customerId: sale.customerId,
       customerName: sale.customerName || "Valued Customer",
@@ -263,13 +262,13 @@ export default function Waybills() {
     setTimeout(() => setDownloadingId(null), 2500);
   };
 
-  const handleQuickPrint = async (sale: Sale, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleQuickPrint = async (sale: Sale, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
     const waybillData: WaybillData = {
       waybillNumber: waybillNum,
       invoiceNumber: sale.invoiceNumber,
-      date: sale.date,
+      date: sale.date || new Date().toISOString(),
       deliveryDate: new Date().toISOString(),
       customerId: sale.customerId,
       customerName: sale.customerName || "Valued Customer",
@@ -308,7 +307,7 @@ export default function Waybills() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setIsCreatingWaybill(true)}
+            onClick={() => { setRecentlyCreatedSale(null); setIsCreatingWaybill(true); }}
             className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -421,211 +420,244 @@ export default function Waybills() {
                 <span>Create Custom Waybill &amp; Delivery Note (Retail &amp; Wholesale Prices)</span>
               </h3>
               <button 
-                onClick={() => setIsCreatingWaybill(false)}
+                onClick={() => { setIsCreatingWaybill(false); setRecentlyCreatedSale(null); }}
                 className="text-gray-300 hover:text-white font-bold text-lg px-2 cursor-pointer"
               >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomWaybill} className="p-6 overflow-y-auto space-y-4 flex-1">
-              {formError && (
-                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
-                  {formError}
-                </div>
-              )}
-
-              {/* Customer Selection */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Select Customer / Consignee</label>
-                  <select
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600"
-                    value={selectedCustomer?.id || ""}
-                    onChange={(e) => {
-                      const found = customers.find((c: any) => c.id === e.target.value);
-                      setSelectedCustomer(found || null);
-                      if (found?.address) setDeliveryAddress(found.address);
-                    }}
+            {recentlyCreatedSale ? (
+              <div className="p-8 text-center space-y-4 my-auto">
+                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl font-bold">✓</div>
+                <h3 className="text-xl font-bold text-gray-900">Waybill Generated Successfully!</h3>
+                <p className="text-sm text-gray-600">Your waybill reference is <strong className="text-blue-900">{recentlyCreatedSale.waybillNumber}</strong>. It has been securely saved and added to your records.</p>
+                <div className="flex justify-center gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDownload(recentlyCreatedSale)}
+                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md"
                   >
-                    <option value="">-- Choose Customer --</option>
-                    {customers.map((c: any) => {
-                      const displayName = c.fullName || c.name || "Unnamed Customer";
-                      const displayType = c.type || c.pricingTier || "";
-                      return (
-                        <option key={c.id} value={c.id}>
-                          {displayName} {displayType ? `(${displayType})` : ""}
+                    <Download className="w-4 h-4" />
+                    <span>Download PDF Waybill</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickPrint(recentlyCreatedSale)}
+                    className="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Print Waybill</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsCreatingWaybill(false); setRecentlyCreatedSale(null); }}
+                    className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Close &amp; Return
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveCustomWaybill} className="p-6 overflow-y-auto space-y-4 flex-1">
+                {formError && (
+                  <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
+                    {formError}
+                  </div>
+                )}
+
+                {/* Customer Selection */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Select Customer / Consignee</label>
+                    <select
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600"
+                      value={selectedCustomer?.id || ""}
+                      onChange={(e) => {
+                        const found = customers.find((c: any) => c.id === e.target.value);
+                        setSelectedCustomer(found || null);
+                        if (found?.address) setDeliveryAddress(found.address);
+                      }}
+                    >
+                      <option value="">-- Choose Customer --</option>
+                      {customers.map((c: any) => {
+                        const displayName = c.fullName || c.name || "Unnamed Customer";
+                        const displayType = c.type || c.pricingTier || "";
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {displayName} {displayType ? `(${displayType})` : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Delivery Address / Destination</label>
+                    <input
+                      type="text"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="Enter destination address..."
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Logistics & Vehicle info */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Vehicle Number</label>
+                    <input
+                      type="text"
+                      value={vehicleNumber}
+                      onChange={(e) => setVehicleNumber(e.target.value)}
+                      placeholder="e.g. ABC-123-XY"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Driver Name</label>
+                    <input
+                      type="text"
+                      value={driverName}
+                      onChange={(e) => setDriverName(e.target.value)}
+                      placeholder="Driver's Full Name"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Driver Phone</label>
+                    <input
+                      type="text"
+                      value={driverPhone}
+                      onChange={(e) => setDriverPhone(e.target.value)}
+                      placeholder="Phone number"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Product Selection & Dual Pricing Control */}
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-bold text-gray-700 uppercase">Select Products (Retail &amp; Wholesale Pricing Shown)</label>
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          handleAddProductRow(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
+                      className="bg-blue-50 text-blue-900 border border-blue-200 text-xs font-bold rounded-lg px-3 py-1.5 outline-none cursor-pointer"
+                    >
+                      <option value="">+ Add Product Item</option>
+                      {products.map((p: Product) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (Retail: {formatCurrency(p.retailPrice || p.sellingPrice || 0)} | Wholesale: {formatCurrency(p.wholesalePrice || p.sellingPrice || 0)})
                         </option>
-                      );
-                    })}
-                  </select>
-                </div>
+                      ))}
+                    </select>
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Delivery Address / Destination</label>
-                  <input
-                    type="text"
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    placeholder="Enter destination address..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-600"
-                  />
-                </div>
-              </div>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {waybillItems.map((item, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs">
+                        <div className="flex-1">
+                          <div className="font-bold text-gray-900">{item.productName}</div>
+                          <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-3">
+                            <span>Retail: <strong className="text-gray-700">{formatCurrency(item.retailPrice)}</strong></span>
+                            <span>Wholesale: <strong className="text-gray-700">{formatCurrency(item.wholesalePrice)}</strong></span>
+                          </div>
+                        </div>
 
-              {/* Logistics & Vehicle info */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Vehicle Number</label>
-                  <input
-                    type="text"
-                    value={vehicleNumber}
-                    onChange={(e) => setVehicleNumber(e.target.value)}
-                    placeholder="e.g. ABC-123-XY"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Driver Name</label>
-                  <input
-                    type="text"
-                    value={driverName}
-                    onChange={(e) => setDriverName(e.target.value)}
-                    placeholder="Driver's Full Name"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Driver Phone</label>
-                  <input
-                    type="text"
-                    value={driverPhone}
-                    onChange={(e) => setDriverPhone(e.target.value)}
-                    placeholder="Phone number"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none"
-                  />
-                </div>
-              </div>
+                        {/* Pricing Mode Toggle Buttons */}
+                        <div className="flex items-center bg-gray-200 p-0.5 rounded-lg">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePriceType(idx, "retail")}
+                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                          >
+                            Retail
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePriceType(idx, "wholesale")}
+                            className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                          >
+                            Wholesale
+                          </button>
+                        </div>
 
-              {/* Product Selection & Dual Pricing Control */}
-              <div className="pt-2 border-t border-gray-200">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase">Select Products (Retail &amp; Wholesale Pricing Shown)</label>
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        handleAddProductRow(e.target.value);
-                        e.target.value = "";
-                      }
-                    }}
-                    className="bg-blue-50 text-blue-900 border border-blue-200 text-xs font-bold rounded-lg px-3 py-1.5 outline-none cursor-pointer"
-                  >
-                    <option value="">+ Add Product Item</option>
-                    {products.map((p: Product) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} (Retail: {formatCurrency(p.retailPrice || p.sellingPrice || 0)} | Wholesale: {formatCurrency(p.wholesalePrice || p.sellingPrice || 0)})
-                      </option>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="any"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateItemQty(idx, e.target.value)}
+                              className="w-16 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
+                            />
+                            <span className="text-gray-400">{item.unit}</span>
+                          </div>
+
+                          <div className="font-bold text-blue-950 w-24 text-right">
+                            <div>{formatCurrency(item.total)}</div>
+                            <div className="text-[10px] text-gray-400 font-normal">@{formatCurrency(item.unitPrice)}</div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemRow(idx)}
+                            className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </select>
-                </div>
 
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {waybillItems.map((item, idx) => (
-                    <div key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs">
-                      <div className="flex-1">
-                        <div className="font-bold text-gray-900">{item.productName}</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-3">
-                          <span>Retail: <strong className="text-gray-700">{formatCurrency(item.retailPrice)}</strong></span>
-                          <span>Wholesale: <strong className="text-gray-700">{formatCurrency(item.wholesalePrice)}</strong></span>
-                        </div>
-                      </div>
+                    {waybillItems.length === 0 && (
+                      <p className="text-center text-xs text-gray-400 py-4 italic">No products added yet. Click "+ Add Product Item" above.</p>
+                    )}
+                  </div>
 
-                      {/* Pricing Mode Toggle Buttons */}
-                      <div className="flex items-center bg-gray-200 p-0.5 rounded-lg">
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePriceType(idx, "retail")}
-                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
-                        >
-                          Retail
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePriceType(idx, "wholesale")}
-                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
-                        >
-                          Wholesale
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min="0.1"
-                            step="any"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItemQty(idx, e.target.value)}
-                            className="w-16 px-2 py-1 text-center font-bold bg-white border border-gray-300 rounded-lg outline-none"
-                          />
-                          <span className="text-gray-400">{item.unit}</span>
-                        </div>
-
-                        <div className="font-bold text-blue-950 w-24 text-right">
-                          <div>{formatCurrency(item.total)}</div>
-                          <div className="text-[10px] text-gray-400 font-normal">@{formatCurrency(item.unitPrice)}</div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItemRow(idx)}
-                          className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                  {waybillItems.length > 0 && (
+                    <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200 font-bold text-sm">
+                      <span>Calculated Total Amount:</span>
+                      <span className="text-blue-950 text-base">{formatCurrency(calculatedSubtotal)}</span>
                     </div>
-                  ))}
-
-                  {waybillItems.length === 0 && (
-                    <p className="text-center text-xs text-gray-400 py-4 italic">No products added yet. Click "+ Add Product Item" above.</p>
                   )}
                 </div>
 
-                {waybillItems.length > 0 && (
-                  <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-200 font-bold text-sm">
-                    <span>Calculated Total Amount:</span>
-                    <span className="text-blue-950 text-base">{formatCurrency(calculatedSubtotal)}</span>
+                {/* Automated Delivery Note Notice */}
+                <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-start gap-2 text-xs text-emerald-900">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold">Automated Delivery Note Included:</strong>
+                    <span>"Goods Received in Good Condition &amp; Proper Order" .</span>
                   </div>
-                )}
-              </div>
-
-              {/* Automated Delivery Note Notice */}
-              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-start gap-2 text-xs text-emerald-900">
-                <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="block font-bold">Automated Delivery Note Included:</strong>
-                  <span>"Goods Received in Good Condition &amp; Proper Order" .</span>
                 </div>
-              </div>
 
-              <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingWaybill(false)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmitting ? "Generating..." : "Save & Generate Waybill"}
-                </button>
-              </div>
-            </form>
+                <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setIsCreatingWaybill(false); setRecentlyCreatedSale(null); }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Generating..." : "Save & Generate Waybill"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -705,7 +737,6 @@ export default function Waybills() {
 
                     <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
-                        {/* Download PDF button (Available for both user and admin) */}
                         <button
                           onClick={(e) => handleQuickDownload(sale, e)}
                           className="p-1.5 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors cursor-pointer"
@@ -718,7 +749,6 @@ export default function Waybills() {
                           )}
                         </button>
 
-                        {/* Print button (Available for both user and admin) */}
                         <button
                           onClick={(e) => handleQuickPrint(sale, e)}
                           className="p-1.5 text-gray-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
@@ -727,7 +757,6 @@ export default function Waybills() {
                           <Printer className="w-4 h-4" />
                         </button>
 
-                        {/* View & Edit */}
                         <button
                           onClick={() => setSelectedSaleForWaybill(sale)}
                           className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
@@ -737,7 +766,6 @@ export default function Waybills() {
                           <span>View &amp; Edit</span>
                         </button>
 
-                        {/* Linked Invoice */}
                         <button
                           onClick={() => setSelectedSaleForInvoice(sale)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
