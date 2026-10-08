@@ -18,7 +18,8 @@ import {
   Trash2,
   Building2,
   ArrowUpRight,
-  Calendar
+  Calendar,
+  CreditCard
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -34,6 +35,7 @@ export default function Waybills() {
   // New Dispatch Creation State
   const [isCreatingWaybill, setIsCreatingWaybill] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
+  const [paymentMethod, setPaymentMethod] = useState<string>("Bank Transfer");
   
   const [waybillItems, setWaybillItems] = useState<{ 
     productId: string; 
@@ -54,10 +56,13 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter and chronologically sort sales with keyword search & date search
+  // Filter sales to show ONLY those with a waybill number assigned or created here
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
-      const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+      // Must have an explicit waybillNumber or be designated as a waybill/dispatch
+      if (!sale.waybillNumber) return false;
+
+      const waybillNum = sale.waybillNumber;
       const search = searchTerm.toLowerCase();
 
       const matchesItems = sale.items?.some(item => 
@@ -98,7 +103,6 @@ export default function Waybills() {
   }, [waybillsList]);
 
   const handleAddProductRow = (productId: string) => {
-    // Robust lookup supporting both id and _id
     const prod = products.find((p: any) => (p.id || p._id) === productId || p.name === productId);
     if (!prod) return;
 
@@ -209,7 +213,7 @@ export default function Waybills() {
         subtotal: calculatedSubtotal,
         discount: 0,
         totalAmount: calculatedSubtotal,
-        paymentMethod: "Bank Transfer",
+        paymentMethod: paymentMethod,
         paymentStatus: "Completed",
         deliveryNotes: "Goods Received in Good Condition & Proper Order. Inspect all seals upon delivery.",
         date: currentDate
@@ -220,7 +224,6 @@ export default function Waybills() {
         if (refreshData) await refreshData();
       }
 
-      // Trigger PDF download
       const waybillData: WaybillData = {
         waybillNumber,
         invoiceNumber,
@@ -246,7 +249,6 @@ export default function Waybills() {
 
       downloadWaybillPdf(waybillData, settings);
 
-      // Reset form & close modal
       setIsCreatingWaybill(false);
       setWaybillItems([]);
       setVehicleNumber("");
@@ -446,7 +448,7 @@ export default function Waybills() {
             <div className="p-4 bg-blue-950 text-white flex justify-between items-center">
               <h3 className="font-bold text-base flex items-center gap-2">
                 <Truck className="w-5 h-5 text-amber-400" />
-                <span>Create Custom Waybill &amp; Delivery Note (Retail &amp; Wholesale Prices)</span>
+                <span>Create Custom Waybill &amp; Delivery Note</span>
               </h3>
               <button 
                 onClick={() => setIsCreatingWaybill(false)}
@@ -463,9 +465,9 @@ export default function Waybills() {
                 </div>
               )}
 
-              {/* Customer Selection */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
+              {/* Customer Selection & Payment Method */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Select Customer / Consignee</label>
                   <select
                     className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600"
@@ -491,15 +493,32 @@ export default function Waybills() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Delivery Address / Destination</label>
-                  <input
-                    type="text"
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    placeholder="Enter destination address..."
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-600"
-                  />
+                  <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Payment Method</label>
+                  <div className="relative">
+                    <CreditCard className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer"
+                    >
+                      <option value="Bank Transfer">Bank Transfer</option>
+                      <option value="Cash">Cash</option>
+                      <option value="POS Terminal">POS Terminal</option>
+                      <option value="Credit">Credit</option>
+                    </select>
+                  </div>
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Delivery Address / Destination</label>
+                <input
+                  type="text"
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder="Enter destination address..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-600"
+                />
               </div>
 
               {/* Logistics & Vehicle info */}
@@ -638,7 +657,7 @@ export default function Waybills() {
                 <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
                   <strong className="block font-bold">Automated Delivery Note Included:</strong>
-                  <span>"Goods Received in Good Condition &amp; Proper Order" .</span>
+                  <span>"Goods Received in Good Condition &amp; Proper Order".</span>
                 </div>
               </div>
 
@@ -675,6 +694,7 @@ export default function Waybills() {
                 <th className="px-5 py-3.5">Dispatch Date</th>
                 <th className="px-5 py-3.5">Consignee</th>
                 <th className="px-5 py-3.5">Destination &amp; Vehicle</th>
+                <th className="px-5 py-3.5">Payment</th>
                 <th className="px-5 py-3.5">Dispatched Items</th>
                 <th className="px-5 py-3.5 text-center">Actions</th>
               </tr>
@@ -730,6 +750,12 @@ export default function Waybills() {
                       </div>
                     </td>
 
+                    <td className="px-5 py-4 text-xs">
+                      <span className="px-2 py-0.5 bg-blue-50 text-blue-800 font-bold rounded-full text-[11px]">
+                        {sale.paymentMethod || "Bank Transfer"}
+                      </span>
+                    </td>
+
                     <td className="px-5 py-4 text-xs font-medium text-gray-700">
                       <span className="font-bold text-blue-900">{totalQty} units</span> across {sale.items.length} item{sale.items.length !== 1 ? "s" : ""}
                       <div className="text-[11px] text-gray-400 truncate max-w-[180px]">
@@ -783,10 +809,10 @@ export default function Waybills() {
 
               {waybillsList.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-gray-400">
+                  <td colSpan={8} className="px-5 py-12 text-center text-gray-400">
                     <Truck className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     <p className="font-semibold text-gray-600 text-base">No Waybills Dispatched</p>
-                    <p className="text-xs text-gray-400 mt-1">Waybills are automatically prepared or can be custom-created using the button above.</p>
+                    <p className="text-xs text-gray-400 mt-1">Use the "Create Custom Waybill" button above to record and track new waybills.</p>
                   </td>
                 </tr>
               )}
