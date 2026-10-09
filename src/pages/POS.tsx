@@ -29,7 +29,7 @@ export default function POS() {
   // Set default customer to Walk-in Customer
   const defaultWalkIn = customers.find((c: any) => c.fullName?.toLowerCase().includes("walk-in") || c.name?.toLowerCase().includes("walk-in")) || { id: "cust_walkin", fullName: "Walk-in Customer", name: "Walk-in Customer", type: "Retail" };
   const [selectedCustomer, setSelectedCustomer] = useState<any>(defaultWalkIn);
-  
+   
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
@@ -39,7 +39,7 @@ export default function POS() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
-  
+   
   // Modal / Drawer state for viewing transactions tabs
   const [showTransactionsModal, setShowTransactionsModal] = useState(false);
   const [transactionTabFilter, setTransactionTabFilter] = useState<"all" | "completed" | "pending">("all");
@@ -248,7 +248,10 @@ export default function POS() {
   const total = Math.max(0, subtotal - discount);
 
   const lastCompletedSale = useMemo(() => {
-    const completedList = (sales as Sale[]).filter(s => s.paymentStatus === "Completed" || s.paymentStatus === "Success");
+    const completedList = (sales as Sale[]).filter(s => {
+      const st = (s.paymentStatus || "").trim().toLowerCase();
+      return st === "completed" || st === "success";
+    });
     if (completedList.length === 0) return sales.length > 0 ? sales[sales.length - 1] : null;
     return completedList.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())[0];
   }, [sales]);
@@ -267,7 +270,7 @@ export default function POS() {
 
     try {
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Walk-in Customer";
-      
+       
       const initialSalePayload = {
         customerId: selectedCustomer.id || "cust_walkin",
         customerName,
@@ -308,7 +311,6 @@ export default function POS() {
         setCompletedSale(updatedSale);
       } catch (printErr) {
         console.warn("Printer failed:", printErr);
-        // Leave paymentStatus as "Pending" or mark as "Unprinted" so it shows under pending/failed tab
         const unprintedSale = { ...savedSale, paymentStatus: "Pending" };
         await apiCall("updateSale", unprintedSale).catch(() => {});
         await refreshData();
@@ -334,7 +336,6 @@ export default function POS() {
     }
 
     try {
-      // 1. Return items back to stock
       if (tx.items && Array.isArray(tx.items)) {
         for (const item of tx.items) {
           const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
@@ -350,7 +351,6 @@ export default function POS() {
         }
       }
 
-      // 2. Update transaction status to cancelled/restored
       await apiCall("updateSale", {
         ...tx,
         paymentStatus: "Restored",
@@ -366,13 +366,13 @@ export default function POS() {
 
   const filteredTransactions = useMemo(() => {
     return (sales as Sale[]).filter(s => {
-      const status = s.paymentStatus || "";
-      const isCompleted = status === "Completed" || status === "Success";
-      const isPendingOrFailed = status === "Pending" || status === "Failed" || !status;
+      const status = (s.paymentStatus || "").trim().toLowerCase();
+      const isCompleted = status === "completed" || status === "success";
+      const isPendingOrFailed = status === "pending" || status === "failed" || status === "" || !s.paymentStatus;
 
       if (transactionTabFilter === "completed") return isCompleted;
-      if (transactionTabFilter === "pending") return isPendingOrFailed && status !== "Restored";
-      return status !== "Restored"; // hide fully restored if viewing all, or keep depending on preference
+      if (transactionTabFilter === "pending") return isPendingOrFailed && status !== "restored";
+      return status !== "restored";
     }).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
   }, [sales, transactionTabFilter]);
 
@@ -745,12 +745,14 @@ export default function POS() {
                   <th className="px-3 py-2.5">Customer</th>
                   <th className="px-3 py-2.5">Amount</th>
                   <th className="px-3 py-2.5">Status</th>
-                  <th className="px-3 py-2.5 text-center">Actions / Receipt</th>
+                  <th className="px-3 py-2.5 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredTransactions.map((tx: Sale) => {
-                  const isCompleted = tx.paymentStatus === "Completed" || tx.paymentStatus === "Success";
+                  const statusTrimmed = (tx.paymentStatus || "").trim().toLowerCase();
+                  const isCompleted = statusTrimmed === "completed" || statusTrimmed === "success";
+
                   return (
                     <tr key={tx.id} className="hover:bg-gray-50">
                       <td className="px-3 py-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
@@ -762,27 +764,29 @@ export default function POS() {
                           {tx.paymentStatus || "Pending"}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-center flex items-center justify-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setCompletedSale(tx)}
-                          className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
-                        >
-                          <Printer className="w-3 h-3" />
-                          <span>View/Print</span>
-                        </button>
-
-                        {!isCompleted && user?.role === "admin" && (
+                      <td className="px-3 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => handleRestoreTransaction(tx)}
-                            className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
-                            title="Restore stock and cancel transaction"
+                            onClick={() => setCompletedSale(tx)}
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
                           >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Restore</span>
+                            <Printer className="w-3 h-3" />
+                            <span>Receipt</span>
                           </button>
-                        )}
+
+                          {!isCompleted && user?.role === "admin" && (
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreTransaction(tx)}
+                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                              title="Restore stock and cancel transaction"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Restore</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
