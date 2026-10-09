@@ -1,6 +1,6 @@
 import React, { useState, useContext, useMemo } from "react";
 import { DataContext } from "../components/Layout";
-import { Sale, WaybillData, Customer, Product, SaleItem } from "../types";
+import { Sale, WaybillData, Customer, Product } from "../types";
 import { formatDate, formatCurrency } from "../lib/utils";
 import { downloadWaybillPdf, printWaybill } from "../lib/waybillGenerator";
 import WaybillModal from "../components/WaybillModal";
@@ -37,7 +37,6 @@ export default function Waybills() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
   const [paymentMethod, setPaymentMethod] = useState<string>("Bank Transfer");
   
-  // Extended item state to track both retail and wholesale prices per row
   const [waybillItems, setWaybillItems] = useState<{ 
     productId: string; 
     productName: string; 
@@ -57,17 +56,12 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter and chronologically sort sales: allow ONLY generated waybills to show, with search & date filters
+  // Filter sales: ensure waybill number exists or fallback to generated WB- format so records always appear
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
-      // Rule: Allow only generated waybills to show on history
-      const hasWaybill = Boolean(sale.waybillNumber);
-      if (!hasWaybill) return false;
-
-      const waybillNum = sale.waybillNumber || "";
+      const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
       const search = searchTerm.toLowerCase();
 
-      // Check if any item in the sale matches the search term (e.g. LPG, AGO)
       const matchesItems = sale.items?.some(item => 
         item.productName?.toLowerCase().includes(search)
       );
@@ -75,7 +69,7 @@ export default function Waybills() {
       const matchesSearch = (
         !searchTerm ||
         waybillNum.toLowerCase().includes(search) ||
-        sale.invoiceNumber.toLowerCase().includes(search) ||
+        sale.invoiceNumber?.toLowerCase().includes(search) ||
         sale.customerName?.toLowerCase().includes(search) ||
         (sale.vehicleNumber && sale.vehicleNumber.toLowerCase().includes(search)) ||
         (sale.driverName && sale.driverName.toLowerCase().includes(search)) ||
@@ -83,7 +77,6 @@ export default function Waybills() {
         matchesItems
       );
 
-      // Date range filtering
       let matchesDate = true;
       if (sale.date) {
         const saleDateOnly = new Date(sale.date).toISOString().split("T")[0];
@@ -103,12 +96,11 @@ export default function Waybills() {
 
   const totalUnitsDispatched = useMemo(() => {
     return waybillsList.reduce((sum, s) => {
-      const saleUnits = s.items.reduce((iSum, item) => iSum + (item.quantity || 0), 0);
+      const saleUnits = s.items?.reduce((iSum, item) => iSum + (item.quantity || 0), 0) || 0;
       return sum + saleUnits;
     }, 0);
   }, [waybillsList]);
 
-  // Add product to custom waybill builder (supports all products like LPG, AGO, etc.)
   const handleAddProductRow = (productId: string) => {
     const prod = products.find((p: Product) => p.id === productId);
     if (!prod) return;
@@ -201,12 +193,11 @@ export default function Waybills() {
     try {
       const invoiceNumber = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
       const waybillNumber = `WB-${Math.floor(100000 + Math.random() * 900000)}`;
-
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Customer";
 
       const newSalePayload = {
         invoiceNumber,
-        waybillNumber, // Explicitly generated waybill number
+        waybillNumber,
         customerId: selectedCustomer.id,
         customerName,
         customerPhone: selectedCustomer.phone || "",
@@ -245,7 +236,7 @@ export default function Waybills() {
   const handleQuickDownload = (sale: Sale, e: React.MouseEvent) => {
     e.stopPropagation();
     setDownloadingId(sale.id);
-    const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+    const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
     const waybillData: WaybillData = {
       waybillNumber: waybillNum,
       invoiceNumber: sale.invoiceNumber,
@@ -260,13 +251,13 @@ export default function Waybills() {
       vehicleNumber: sale.vehicleNumber || "NOT SPECIFIED",
       driverName: sale.driverName || "Designated Transporter",
       driverPhone: sale.driverPhone || "N/A",
-      items: sale.items.map(item => ({
+      items: (sale.items || []).map(item => ({
         productName: item.productName,
         quantity: item.quantity,
         unit: item.unit || "Unit",
         remarks: "Goods Received in Good Condition"
       })),
-      deliveryNotes: sale.deliveryNotes || "Goods Received in Good Condition & Proper Order. Ensure vehicle tank/seals are verified prior to discharge."
+      deliveryNotes: sale.deliveryNotes || "Goods Received in Good Condition & Proper Order."
     };
 
     downloadWaybillPdf(waybillData, settings);
@@ -275,7 +266,7 @@ export default function Waybills() {
 
   const handleQuickPrint = async (sale: Sale, e: React.MouseEvent) => {
     e.stopPropagation();
-    const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
+    const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
     const waybillData: WaybillData = {
       waybillNumber: waybillNum,
       invoiceNumber: sale.invoiceNumber,
@@ -290,7 +281,7 @@ export default function Waybills() {
       vehicleNumber: sale.vehicleNumber || "NOT SPECIFIED",
       driverName: sale.driverName || "Designated Transporter",
       driverPhone: sale.driverPhone || "N/A",
-      items: sale.items.map(item => ({
+      items: (sale.items || []).map(item => ({
         productName: item.productName,
         quantity: item.quantity,
         unit: item.unit || "Unit",
@@ -391,14 +382,13 @@ export default function Waybills() {
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search by Waybill #, Invoice #, Product (LPG, AGO), Consignee..."
+            placeholder="Search by Waybill #, Invoice #, Product (LPG, AGO)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
           />
         </div>
 
-        {/* Date Search Filter Inputs */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-lg">
             <Calendar className="w-4 h-4 text-gray-400" />
@@ -407,7 +397,7 @@ export default function Waybills() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent text-xs outline-none font-medium text-gray-800"
+              className="bg-transparent text-xs outline-none font-medium text-gray-800 cursor-pointer"
             />
           </div>
 
@@ -418,7 +408,7 @@ export default function Waybills() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent text-xs outline-none font-medium text-gray-800"
+              className="bg-transparent text-xs outline-none font-medium text-gray-800 cursor-pointer"
             />
           </div>
 
@@ -426,7 +416,7 @@ export default function Waybills() {
             <button
               type="button"
               onClick={() => { setSearchTerm(""); setStartDate(""); setEndDate(""); }}
-              className="text-xs text-amber-600 hover:underline font-bold px-2 py-1"
+              className="text-xs text-amber-600 hover:underline font-bold px-2 py-1 cursor-pointer"
             >
               Clear Filters
             </button>
@@ -434,7 +424,7 @@ export default function Waybills() {
         </div>
       </div>
 
-      {/* Create Waybill Modal / Drawer Form */}
+      {/* Create Waybill Modal */}
       {isCreatingWaybill && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -458,12 +448,11 @@ export default function Waybills() {
                 </div>
               )}
 
-              {/* Customer Selection & Payment Method */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Select Customer / Consignee</label>
                   <select
-                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer"
                     value={selectedCustomer?.id || ""}
                     onChange={(e) => {
                       const found = customers.find((c: any) => c.id === e.target.value);
@@ -510,7 +499,6 @@ export default function Waybills() {
                 />
               </div>
 
-              {/* Logistics & Vehicle info */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Vehicle Number</label>
@@ -544,10 +532,9 @@ export default function Waybills() {
                 </div>
               </div>
 
-              {/* Product Selection & Dual Pricing Control (Allows all products: LPG, AGO, etc.) */}
               <div className="pt-2 border-t border-gray-200">
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-gray-700 uppercase">Select Products (LPG, AGO, Fuel &amp; Lubricants)</label>
+                  <label className="block text-xs font-bold text-gray-700 uppercase">Select Products (LPG, AGO &amp; Products)</label>
                   <select
                     onChange={(e) => {
                       if (e.target.value) {
@@ -577,19 +564,18 @@ export default function Waybills() {
                         </div>
                       </div>
 
-                      {/* Pricing Mode Toggle Buttons */}
                       <div className="flex items-center bg-gray-200 p-0.5 rounded-lg">
                         <button
                           type="button"
                           onClick={() => handleTogglePriceType(idx, "retail")}
-                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors cursor-pointer ${item.selectedPriceType === "retail" ? "bg-white text-blue-900 shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
                         >
                           Retail
                         </button>
                         <button
                           type="button"
                           onClick={() => handleTogglePriceType(idx, "wholesale")}
-                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
+                          className={`px-2 py-1 rounded-md font-bold text-[10px] transition-colors cursor-pointer ${item.selectedPriceType === "wholesale" ? "bg-amber-500 text-white shadow-xs" : "text-gray-600 hover:text-gray-900"}`}
                         >
                           Wholesale
                         </button>
@@ -625,7 +611,7 @@ export default function Waybills() {
                   ))}
 
                   {waybillItems.length === 0 && (
-                    <p className="text-center text-xs text-gray-400 py-4 italic">No products added yet. Click "+ Add Product Item" above (LPG, AGO, etc.).</p>
+                    <p className="text-center text-xs text-gray-400 py-4 italic">No products added yet. Click "+ Add Product Item" above.</p>
                   )}
                 </div>
 
@@ -637,7 +623,6 @@ export default function Waybills() {
                 )}
               </div>
 
-              {/* Automated Delivery Note Notice */}
               <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-start gap-2 text-xs text-emerald-900">
                 <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
@@ -684,8 +669,8 @@ export default function Waybills() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {waybillsList.map((sale: Sale) => {
-                const waybillNum = sale.waybillNumber || `WB-${sale.invoiceNumber.replace("INV-", "")}`;
-                const totalQty = sale.items.reduce((sum, i) => sum + (i.quantity || 0), 0);
+                const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
+                const totalQty = sale.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
                 return (
                   <tr key={sale.id} className="hover:bg-amber-50/20 transition-colors">
                     <td className="px-5 py-4 font-bold text-amber-700">
@@ -734,9 +719,9 @@ export default function Waybills() {
                     </td>
 
                     <td className="px-5 py-4 text-xs font-medium text-gray-700">
-                      <span className="font-bold text-blue-900">{totalQty} units</span> across {sale.items.length} item{sale.items.length !== 1 ? "s" : ""}
+                      <span className="font-bold text-blue-900">{totalQty} units</span> across {(sale.items || []).length} item{(sale.items || []).length !== 1 ? "s" : ""}
                       <div className="text-[11px] text-gray-400 truncate max-w-[180px]">
-                        {sale.items.map(i => `${i.quantity}x ${i.productName}`).join(", ")}
+                        {(sale.items || []).map(i => `${i.quantity}x ${i.productName}`).join(", ")}
                       </div>
                     </td>
 
@@ -789,7 +774,6 @@ export default function Waybills() {
         </div>
       </div>
 
-      {/* Waybill Detail Modal */}
       {selectedSaleForWaybill && (
         <WaybillModal
           sale={selectedSaleForWaybill}
@@ -798,7 +782,6 @@ export default function Waybills() {
         />
       )}
 
-      {/* Invoice Linked Modal */}
       {selectedSaleForInvoice && (
         <InvoiceModal
           sale={selectedSaleForInvoice}
