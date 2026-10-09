@@ -18,7 +18,8 @@ import {
   Trash2,
   Building2,
   ArrowUpRight,
-  Calendar
+  Calendar,
+  AlertTriangle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -32,8 +33,19 @@ export default function Waybills() {
   const [selectedSaleForInvoice, setSelectedSaleForInvoice] = useState<Sale | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
+  // Local fallback state to ensure newly saved waybills appear immediately
+  const [localCustomWaybills, setLocalCustomWaybills] = useState<Sale[]>(() => {
+    try {
+      const saved = localStorage.getItem("pos_custom_waybills");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   // New Dispatch Creation State
   const [isCreatingWaybill, setIsCreatingWaybill] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(customers[0] || null);
   const [paymentMethod, setPaymentMethod] = useState<string>("Bank Transfer");
   
@@ -56,14 +68,25 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter sales: Show waybills generated from the Waybill page or containing a waybill number
+  // Combined and filtered waybills list
   const waybillsList = useMemo(() => {
-    const filtered = (sales as Sale[]).filter((sale) => {
-      const waybillNum = sale.waybillNumber || "";
-      // Relaxed rule: Allow if it's explicitly marked as custom OR has a waybill number starting with WB-
-      const isWaybillRecord = sale.isCustomWaybill || (waybillNum && waybillNum.startsWith("WB-"));
-      if (!isWaybillRecord) return false;
+    // Merge context sales and local state to guarantee immediate visibility
+    const allSalesMap = new Map<string, Sale>();
+    
+    // First load local storage custom waybills
+    localCustomWaybills.forEach(w => allSalesMap.set(w.id || w.waybillNumber, w));
+    
+    // Then merge context sales
+    (sales as Sale[]).forEach(s => {
+      if (s.isCustomWaybill || (s.waybillNumber && s.waybillNumber.startsWith("WB-"))) {
+        allSalesMap.set(s.id || s.waybillNumber, s);
+      }
+    });
 
+    const combinedSales = Array.from(allSalesMap.values());
+
+    const filtered = combinedSales.filter((sale) => {
+      const waybillNum = sale.waybillNumber || "";
       const search = searchTerm.toLowerCase();
 
       const matchesItems = sale.items?.some(item => 
@@ -96,7 +119,7 @@ export default function Waybills() {
       const dateB = new Date(b.date || 0).getTime();
       return dateB - dateA;
     });
-  }, [sales, searchTerm, startDate, endDate]);
+  }, [sales, localCustomWaybills, searchTerm, startDate, endDate]);
 
   const totalUnitsDispatched = useMemo(() => {
     return waybillsList.reduce((sum, s) => {
@@ -186,6 +209,7 @@ export default function Waybills() {
     const customerName = selectedCustomer?.fullName || selectedCustomer?.name || "Customer";
 
     return {
+      id: `wb_local_${Date.now()}`,
       invoiceNumber,
       waybillNumber,
       isCustomWaybill: true,
@@ -207,7 +231,7 @@ export default function Waybills() {
     };
   };
 
-  const handleSaveCustomWaybill = async (e: React.FormEvent) => {
+  const handlePreSubmitCheck = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomer) {
       setFormError("Please select a customer for this waybill.");
@@ -217,12 +241,26 @@ export default function Waybills() {
       setFormError("Please add at least one product item.");
       return;
     }
+    setFormError("");
+    setShowConfirmModal(true); // Open the confirmation dialog box
+  };
 
+  const handleExecuteSaveCustomWaybill = async () => {
+    setShowConfirmModal(false);
     setIsSubmitting(true);
     setFormError("");
 
     try {
       const newSalePayload = buildWaybillPayload();
+
+      // Save to local state immediately so it renders without delay
+      const updatedLocal = [newSalePayload, ...localCustomWaybills];
+      setLocalCustomWaybills(updatedLocal);
+      try {
+        localStorage.setItem("pos_custom_waybills", JSON.stringify(updatedLocal));
+      } catch (err) {
+        console.error("Local storage error:", err);
+      }
 
       if (apiCall) {
         await apiCall("addSale", newSalePayload);
@@ -487,7 +525,7 @@ export default function Waybills() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomWaybill} className="p-6 overflow-y-auto space-y-4 flex-1">
+            <form onSubmit={handlePreSubmitCheck} className="p-6 overflow-y-auto space-y-4 flex-1">
               {formError && (
                 <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
                   {formError}
@@ -707,6 +745,38 @@ export default function Waybills() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION DIALOG MODAL (Are you sure you want to save this waybill?) */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Are you sure you want to save this waybill?</h3>
+              <p className="text-xs text-gray-500 mt-1">This will record the transaction and generate your dispatch entry immediately.</p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors cursor-pointer"
+              >
+                No (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteSaveCustomWaybill}
+                disabled={isSubmitting}
+                className="flex-1 px-4 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-bold text-sm transition-colors cursor-pointer shadow-md disabled:opacity-50"
+              >
+                Yes, Save
+              </button>
+            </div>
           </div>
         </div>
       )}
