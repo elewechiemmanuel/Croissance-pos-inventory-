@@ -56,13 +56,14 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter sales: Show ONLY waybills generated from the Waybill page (isCustomWaybill === true)
+  // Filter sales: Show waybills generated from the Waybill page or containing a waybill number
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
-      // Strict rule: Allow only waybills created from the Waybill page
-      if (!sale.isCustomWaybill) return false;
-
       const waybillNum = sale.waybillNumber || "";
+      // Relaxed rule: Allow if it's explicitly marked as custom OR has a waybill number starting with WB-
+      const isWaybillRecord = sale.isCustomWaybill || (waybillNum && waybillNum.startsWith("WB-"));
+      if (!isWaybillRecord) return false;
+
       const search = searchTerm.toLowerCase();
 
       const matchesItems = sale.items?.some(item => 
@@ -187,7 +188,7 @@ export default function Waybills() {
     return {
       invoiceNumber,
       waybillNumber,
-      isCustomWaybill: true, // Flag to isolate waybills generated from this page
+      isCustomWaybill: true,
       customerId: selectedCustomer?.id || "cust_walkin",
       customerName,
       customerPhone: selectedCustomer?.phone || "",
@@ -241,7 +242,6 @@ export default function Waybills() {
     }
   };
 
-  // Allows downloading the PDF directly from the creation modal before or during saving
   const handleDownloadFromModal = () => {
     if (!selectedCustomer) {
       setFormError("Please select a customer before downloading.");
@@ -713,126 +713,94 @@ export default function Waybills() {
 
       {/* Waybills Table */}
       <div className="bg-white rounded-xl shadow-xs border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
-              <tr>
-                <th className="px-5 py-3.5">Waybill #</th>
-                <th className="px-5 py-3.5">Invoice Ref</th>
-                <th className="px-5 py-3.5">Dispatch Date</th>
-                <th className="px-5 py-3.5">Consignee</th>
-                <th className="px-5 py-3.5">Destination &amp; Vehicle</th>
-                <th className="px-5 py-3.5">Dispatched Items</th>
-                <th className="px-5 py-3.5 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {waybillsList.map((sale: Sale) => {
-                const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
-                const totalQty = sale.items?.reduce((sum, i) => sum + (i.quantity || 0), 0) || 0;
-                return (
-                  <tr key={sale.id} className="hover:bg-amber-50/20 transition-colors">
-                    <td className="px-5 py-4 font-bold text-amber-700">
-                      <button
-                        onClick={() => setSelectedSaleForWaybill(sale)}
-                        className="hover:underline flex items-center gap-1.5 cursor-pointer text-left"
-                      >
-                        <Truck className="w-4 h-4 text-amber-600 shrink-0" />
-                        <span>{waybillNum}</span>
-                      </button>
-                    </td>
-
-                    <td className="px-5 py-4 text-xs font-semibold text-blue-900">
-                      <button
-                        onClick={() => setSelectedSaleForInvoice(sale)}
-                        className="hover:underline flex items-center gap-1 cursor-pointer"
-                        title="View Linked Invoice"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-blue-600" />
-                        <span>{sale.invoiceNumber}</span>
-                      </button>
-                    </td>
-
-                    <td className="px-5 py-4 text-xs text-gray-500">
-                      {formatDate(sale.date)}
-                    </td>
-
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-gray-800">{sale.customerName || "Customer"}</div>
-                      {sale.customerPhone && (
-                        <div className="text-[11px] text-gray-400">{sale.customerPhone}</div>
-                      )}
-                    </td>
-
-                    <td className="px-5 py-4 text-xs">
-                      <div className="flex items-center gap-1 text-gray-700">
-                        <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                        <span className="truncate max-w-[200px]">
-                          {sale.deliveryAddress || sale.customerAddress || "Local Depot / Station Pickup"}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        Vehicle: <strong className="text-gray-800">{sale.vehicleNumber || "Standard Logistics"}</strong>
-                        {sale.driverName && <span> &bull; {sale.driverName}</span>}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-xs font-medium text-gray-700">
-                      <span className="font-bold text-blue-900">{totalQty} units</span> across {(sale.items || []).length} item{(sale.items || []).length !== 1 ? "s" : ""}
-                      <div className="text-[11px] text-gray-400 truncate max-w-[180px]">
-                        {(sale.items || []).map(i => `${i.quantity}x ${i.productName}`).join(", ")}
-                      </div>
-                    </td>
-
-                    <td className="px-5 py-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {/* Download PDF Button */}
-                        <button
-                          onClick={(e) => handleQuickDownload(sale, e)}
-                          disabled={downloadingId === sale.id}
-                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Download Waybill PDF"
-                        >
-                          <Download className="w-3 h-3 text-amber-600" />
-                          <span>{downloadingId === sale.id ? "Downloading..." : "Download"}</span>
-                        </button>
-
-                        {/* Print Button */}
-                        <button
-                          onClick={(e) => handleQuickPrint(sale, e)}
-                          className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer transition-colors"
-                          title="Print Waybill"
-                        >
-                          <Printer className="w-3 h-3 text-blue-600" />
-                          <span>Print</span>
-                        </button>
-
-                        {/* View Modal Trigger */}
-                        <button
-                          onClick={() => setSelectedSaleForWaybill(sale)}
-                          className="p-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded cursor-pointer"
-                          title="View Waybill Details"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {waybillsList.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400 text-sm italic">
-                    No custom waybill records found. Generate a waybill using the "Create Custom Waybill" button above.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 text-sm">Recent Waybills History</h3>
+          <span className="text-xs text-gray-400">Showing {waybillsList.length} records</span>
         </div>
+
+        {waybillsList.length === 0 ? (
+          <div className="p-12 text-center">
+            <Truck className="w-12 h-12 text-gray-300 mx-auto mb-3 stroke-[1.5]" />
+            <p className="text-sm font-medium text-gray-600">No custom waybill records found.</p>
+            <p className="text-xs text-gray-400 mt-1">Generate a waybill using the "Create Custom Waybill" button above.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 uppercase font-semibold border-b border-gray-100">
+                  <th className="py-3 px-4">Waybill #</th>
+                  <th className="py-3 px-4">Invoice Ref</th>
+                  <th className="py-3 px-4">Dispatch Date</th>
+                  <th className="py-3 px-4">Consignee</th>
+                  <th className="py-3 px-4">Destination &amp; Vehicle</th>
+                  <th className="py-3 px-4">Dispatched Items</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {waybillsList.map((sale: Sale) => {
+                  const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
+                  return (
+                    <tr key={sale.id || sale.waybillNumber} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="py-3 px-4 font-bold text-blue-900">{waybillNum}</td>
+                      <td className="py-3 px-4 font-mono text-gray-600">{sale.invoiceNumber || "N/A"}</td>
+                      <td className="py-3 px-4 text-gray-600">{formatDate(sale.date)}</td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-gray-900">{sale.customerName || "Customer"}</div>
+                        <div className="text-[11px] text-gray-400">{sale.customerPhone || ""}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-gray-800 font-medium truncate max-w-xs">{sale.deliveryAddress || "N/A"}</div>
+                        <div className="text-[11px] text-amber-600 font-mono mt-0.5">{sale.vehicleNumber || "PENDING VEHICLE"}</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="text-gray-800 font-medium">
+                          {sale.items?.length || 0} items ({sale.items?.reduce((acc: number, cur: any) => acc + (cur.quantity || 0), 0) || 0} units)
+                        </div>
+                        <div className="text-[11px] text-gray-400 truncate max-w-xs">
+                          {sale.items?.map((i: any) => `${i.productName} (${i.quantity})`).join(", ")}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickDownload(sale, e)}
+                            disabled={downloadingId === sale.id}
+                            title="Download PDF"
+                            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleQuickPrint(sale, e)}
+                            title="Print Waybill"
+                            className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSaleForWaybill(sale)}
+                            title="View Details"
+                            className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
+      {/* Modals for viewing/printing detailed waybills or invoices */}
       {selectedSaleForWaybill && (
         <WaybillModal
           sale={selectedSaleForWaybill}
