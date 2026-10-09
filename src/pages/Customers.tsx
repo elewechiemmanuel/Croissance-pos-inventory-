@@ -235,14 +235,6 @@ const Customers: React.FC = () => {
       return;
     }
 
-    if (
-      email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+\$/.test(email)
-    ) {
-      showError('Please enter a valid email address.');
-      return;
-    }
-
     if (!phone) {
       showError('Phone number is required.');
       return;
@@ -299,14 +291,6 @@ const Customers: React.FC = () => {
 
     if (!name) {
       showError('Customer name is required.');
-      return;
-    }
-
-    if (
-      email &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+\$/.test(email)
-    ) {
-      showError('Please enter a valid email address.');
       return;
     }
 
