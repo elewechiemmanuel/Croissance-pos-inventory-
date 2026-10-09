@@ -29,7 +29,7 @@ export default function POS() {
   // Set default customer to Walk-in Customer
   const defaultWalkIn = customers.find((c: any) => c.fullName?.toLowerCase().includes("walk-in") || c.name?.toLowerCase().includes("walk-in")) || { id: "cust_walkin", fullName: "Walk-in Customer", name: "Walk-in Customer", type: "Retail" };
   const [selectedCustomer, setSelectedCustomer] = useState<any>(defaultWalkIn);
-   
+  
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [discount, setDiscount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>("Cash");
@@ -39,7 +39,7 @@ export default function POS() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
-   
+  
   // Modal / Drawer state for viewing transactions tabs
   const [showTransactionsModal, setShowTransactionsModal] = useState(false);
   const [transactionTabFilter, setTransactionTabFilter] = useState<"all" | "completed" | "pending">("all");
@@ -122,7 +122,7 @@ export default function POS() {
       if (existing) {
         const nextQty = existing.quantity + qtyToAdd;
         if (nextQty > availableStock) {
-          setError(`Cannot add \${qtyToAdd}. Only ${availableStock}${product.unit || 'L'} available in stock.`);
+          setError(`Cannot add ${qtyToAdd}. Only ${availableStock} ${product.unit || 'L'} available in stock.`);
           return prev;
         }
         return prev.map(item => 
@@ -133,7 +133,7 @@ export default function POS() {
       }
        
       if (availableStock < qtyToAdd) {
-        setError(`Insufficient stock! Only ${availableStock}${product.unit || 'L'} available.`);
+        setError(`Insufficient stock! Only ${availableStock} ${product.unit || 'L'} available.`);
         return prev;
       }
 
@@ -168,7 +168,7 @@ export default function POS() {
     const availableStock = product?.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
 
     if (product && parsed > availableStock) {
-      setError(`Cannot exceed available stock of ${availableStock}${product.unit || 'L'}.`);
+      setError(`Cannot exceed available stock of ${availableStock} ${product.unit || 'L'}.`);
       setCart(prev => {
         const newCart = [...prev];
         newCart[index] = {
@@ -220,7 +220,7 @@ export default function POS() {
       }
        
       if (product && newQuantity > availableStock) {
-        setError(`Cannot exceed available stock (${availableStock}${product.unit || 'L'}).`);
+        setError(`Cannot exceed available stock (${availableStock} ${product.unit || 'L'}).`);
         return newCart;
       }
 
@@ -270,7 +270,7 @@ export default function POS() {
 
     try {
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Walk-in Customer";
-       
+      
       const initialSalePayload = {
         customerId: selectedCustomer.id || "cust_walkin",
         customerName,
@@ -330,7 +330,7 @@ export default function POS() {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to restore invoice \${tx.invoiceNumber}? This will return items back to stock and cancel the transaction.`)) {
+    if (!window.confirm(`Are you sure you want to restore invoice ${tx.invoiceNumber}? This will return items back to stock and cancel the transaction.`)) {
       return;
     }
 
@@ -432,7 +432,7 @@ export default function POS() {
                 const displayType = c.type || c.pricingTier || "";
                 return (
                   <option key={c.id} value={c.id}>
-                    {displayName} {displayType === 'Wholesale' ? `(Wholesale)` : displayType ? `(\${displayType})` : ''}
+                    {displayName} {displayType === 'Wholesale' ? `(Wholesale)` : displayType ? `(${displayType})` : ''}
                   </option>
                 );
               })}
@@ -459,7 +459,7 @@ export default function POS() {
               key={cat}
               type="button"
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer \${
+              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 selectedCategory.toLowerCase() === cat.toLowerCase()
                   ? "bg-blue-900 text-white shadow-2xs"
                   : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"
@@ -501,7 +501,7 @@ export default function POS() {
                   <h3 className="font-bold text-gray-900 text-sm leading-tight">{product.name}</h3>
                   <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">{product.category}</span>
                 </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold shrink-0 ml-1 \${stockVal > (product.minStock || 10) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold shrink-0 ml-1 ${stockVal > (product.minStock || 10) ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
                   {stockVal} {product.unit || 'L'} left
                 </span>
               </div>
@@ -713,18 +713,101 @@ export default function POS() {
               <button
                 type="button"
                 onClick={() => setTransactionTabFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer \${transactionTabFilter === "all" ? "bg-blue-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "all" ? "bg-blue-900 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
               >
                 All Transactions
               </button>
               <button
                 type="button"
                 onClick={() => setTransactionTabFilter("completed")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer \${transactionTabFilter === "completed" ? "bg-emerald-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "completed" ? "bg-emerald-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
               >
                 Successful
               </button>
               <button
                 type="button"
                 onClick={() => setTransactionTabFilter("pending")}
-                className={`px-3 py-1.5 rounded-lg text
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "pending" ? "bg-amber-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
+              >
+                Pending / Unprinted
+              </button>
+            </div>
+            <span className="text-xs text-gray-500 font-semibold">{filteredTransactions.length} records found</span>
+          </div>
+
+          <div className="p-4 overflow-y-auto flex-1">
+            <table className="w-full text-left text-xs whitespace-nowrap">
+              <thead className="bg-gray-100 text-gray-600 uppercase font-semibold">
+                <tr>
+                  <th className="px-3 py-2.5">Invoice #</th>
+                  <th className="px-3 py-2.5">Date &amp; Time</th>
+                  <th className="px-3 py-2.5">Customer</th>
+                  <th className="px-3 py-2.5">Amount</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredTransactions.map((tx: Sale) => {
+                  const statusTrimmed = (tx.paymentStatus || "").trim().toLowerCase();
+                  const isCompleted = statusTrimmed === "completed" || statusTrimmed === "success";
+
+                  return (
+                    <tr key={tx.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
+                      <td className="px-3 py-3 text-gray-500">{formatDate(tx.date)}</td>
+                      <td className="px-3 py-3 font-semibold text-gray-800">{tx.customerName || "Walk-in Customer"}</td>
+                      <td className="px-3 py-3 font-bold text-gray-900">{formatCurrency(tx.totalAmount)}</td>
+                      <td className="px-3 py-3">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${isCompleted ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                          {tx.paymentStatus || "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowTransactionsModal(false);
+                              setCompletedSale(tx);
+                            }}
+                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                          >
+                            <Printer className="w-3 h-3" />
+                            <span>Receipt</span>
+                          </button>
+
+                          {!isCompleted && user?.role === "admin" && (
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreTransaction(tx)}
+                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                              title="Restore stock and cancel transaction"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Restore</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      )}
+
+      {/* Receipt Modal Preview */}
+      {completedSale && (
+        <Receipt 
+          sale={completedSale} 
+          settings={settings} 
+          onClose={() => setCompletedSale(null)} 
+        />
+      )}
+    </div>
+  );
+}
