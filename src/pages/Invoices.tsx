@@ -120,15 +120,8 @@ const getDateValue = (value: unknown): Date | null => {
     const trimmed = value.trim();
     if (/^\d{4}-\d{2}-\d{2}\$/.test(trimmed)) {
       const [year, month, day] = trimmed.split("-").map(Number);
-      const now = new Date();
-      return new Date(
-        year,
-        month - 1,
-        day,
-        now.getHours(),
-        now.getMinutes(),
-        now.getSeconds()
-      );
+      // Fallback for legacy date-only strings to avoid 1:00 AM UTC default
+      return new Date(year, month - 1, day, 12, 0, 0);
     }
 
     const d = new Date(trimmed);
