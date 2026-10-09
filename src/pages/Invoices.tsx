@@ -61,7 +61,6 @@ const normalizeStatus = (status?: string, paymentMethod?: string): string => {
   const value = String(status ?? "").trim().toLowerCase();
   const method = String(paymentMethod ?? "").trim().toLowerCase();
 
-  // If paid, completed, settled, or if it's a Cash/POS payment that isn't explicitly unpaid/pending
   if (
     value === "paid" ||
     value === "completed" ||
@@ -86,11 +85,11 @@ const normalizeStatus = (status?: string, paymentMethod?: string): string => {
     return "Pending";
   }
 
-  return "Paid"; // Default fallback for completed counter sales
+  return "Paid";
 };
 
 const getDateValue = (value: unknown): Date | null => {
-  if (!value) return new Date(); // Fallback to current time if missing so it never shows blank/midnight incorrectly
+  if (!value) return new Date();
 
   if (value instanceof Date) {
     return isNaN(value.getTime()) ? new Date() : value;
@@ -119,7 +118,7 @@ const getDateValue = (value: unknown): Date | null => {
 
   if (typeof value === "string") {
     const trimmed = value.trim();
-    // Fixed regex: Removed invalid backslash before $if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    if (/^\d{4}-\d{2}-\d{2}\$/.test(trimmed)) {
       const [year, month, day] = trimmed.split("-").map(Number);
       const now = new Date();
       return new Date(
