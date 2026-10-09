@@ -57,13 +57,22 @@ const formatNaira = (amount: number | undefined | null): string => {
   }).format(Number.isFinite(value) ? value : 0);
 };
 
-const normalizeStatus = (status?: string): string => {
+const normalizeStatus = (status?: string, paymentMethod?: string): string => {
   const value = String(status ?? "").trim().toLowerCase();
+  const method = String(paymentMethod ?? "").trim().toLowerCase();
 
+  // If paid, completed, settled, or if it's a Cash/POS payment that isn't explicitly unpaid/pending
   if (
     value === "paid" ||
     value === "completed" ||
-    value === "settled"
+    value === "settled" ||
+    value === "success" ||
+    value === "successful" ||
+    ((method === "cash" || method === "pos" || method === "transfer") &&
+      value !== "pending" &&
+      value !== "unpaid" &&
+      value !== "part-paid" &&
+      value !== "part paid")
   ) {
     return "Paid";
   }
@@ -77,14 +86,14 @@ const normalizeStatus = (status?: string): string => {
     return "Pending";
   }
 
-  return status || "Paid";
+  return "Paid"; // Default fallback for completed counter sales
 };
 
 const getDateValue = (value: unknown): Date | null => {
-  if (!value) return null;
+  if (!value) return new Date(); // Fallback to current time if missing so it never shows blank/midnight incorrectly
 
   if (value instanceof Date) {
-    return isNaN(value.getTime()) ? null : value;
+    return isNaN(value.getTime()) ? new Date() : value;
   }
 
   // Handle Firestore Timestamp object
@@ -96,38 +105,45 @@ const getDateValue = (value: unknown): Date | null => {
   ) {
     try {
       const d = (value as { toDate: () => Date }).toDate();
-      return isNaN(d.getTime()) ? null : d;
+      return isNaN(d.getTime()) ? new Date() : d;
     } catch {
-      return null;
+      return new Date();
     }
   }
 
   // Handle numbers (timestamps)
   if (typeof value === "number") {
     const d = new Date(value);
-    return isNaN(d.getTime()) ? null : d;
+    return isNaN(d.getTime()) ? new Date() : d;
   }
 
   if (typeof value === "string") {
     const trimmed = value.trim();
-    // If it's a date-only string like "YYYY-MM-DD", parse components locally 
-    // to avoid UTC midnight shifting issues.
+    // If it's a date-only string like "YYYY-MM-DD", combine with current local time or default to now
     if (/^\d{4}-\d{2}-\d{2}\$/.test(trimmed)) {
       const [year, month, day] = trimmed.split("-").map(Number);
-      return new Date(year, month - 1, day);
+      const now = new Date();
+      return new Date(
+        year,
+        month - 1,
+        day,
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds()
+      );
     }
 
     const d = new Date(trimmed);
-    return isNaN(d.getTime()) ? null : d;
+    return isNaN(d.getTime()) ? new Date() : d;
   }
 
-  return null;
+  return new Date();
 };
 
 // Helper function to format date including accurate local time
 const formatDateTime = (value: unknown): string => {
   const dateObj = getDateValue(value);
-  if (!dateObj) return String(value || "N/A");
+  if (!dateObj) return "N/A";
 
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -246,7 +262,7 @@ export default function Invoices() {
     const term = searchTerm.trim().toLowerCase();
 
     return allMatchingInvoices.filter((sale) => {
-      const normalized = normalizeStatus(sale.paymentStatus);
+      const normalized = normalizeStatus(sale.paymentStatus, sale.paymentMethod);
 
       const matchesStatus =
         statusFilter === "ALL" ||
@@ -307,7 +323,7 @@ export default function Invoices() {
 
   const completedCount = useMemo(() => {
     return filteredInvoices.filter(
-      (sale) => normalizeStatus(sale.paymentStatus) === "Paid"
+      (sale) => normalizeStatus(sale.paymentStatus, sale.paymentMethod) === "Paid"
     ).length;
   }, [filteredInvoices]);
 
@@ -344,7 +360,7 @@ export default function Invoices() {
 
     try {
       const excelData = filteredInvoices.map((sale, index) => {
-        const status = normalizeStatus(sale.paymentStatus);
+        const status = normalizeStatus(sale.paymentStatus, sale.paymentMethod);
         const formattedDate = sale.date ? formatDateTime(sale.date) : "N/A";
         
         const itemsSummary = (sale.items || [])
@@ -638,7 +654,7 @@ export default function Invoices() {
 
             <tbody className="divide-y divide-gray-100">
               {paginatedInvoices.map((sale) => {
-                const status = normalizeStatus(sale.paymentStatus);
+                const status = normalizeStatus(sale.paymentStatus, sale.paymentMethod);
 
                 return (
                   <tr
