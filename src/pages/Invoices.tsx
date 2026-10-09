@@ -80,21 +80,14 @@ const normalizeStatus = (status?: string): string => {
   return status || "Paid";
 };
 
-const getDateValue = (value: unknown): string => {
-  if (!value) return "";
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    return new Date(value).toISOString();
-  }
+const getDateValue = (value: unknown): Date | null => {
+  if (!value) return null;
 
   if (value instanceof Date) {
-    return value.toISOString();
+    return isNaN(value.getTime()) ? null : value;
   }
 
+  // Handle Firestore Timestamp object
   if (
     typeof value === "object" &&
     value !== null &&
@@ -102,26 +95,39 @@ const getDateValue = (value: unknown): string => {
     typeof (value as { toDate?: unknown }).toDate === "function"
   ) {
     try {
-      return (
-        value as {
-          toDate: () => Date;
-        }
-      ).toDate().toISOString();
+      const d = (value as { toDate: () => Date }).toDate();
+      return isNaN(d.getTime()) ? null : d;
     } catch {
-      return "";
+      return null;
     }
   }
 
-  return "";
+  // Handle numbers (timestamps)
+  if (typeof value === "number") {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    // If it's a date-only string like "YYYY-MM-DD", parse components locally 
+    // to avoid UTC midnight shifting issues.
+    if (/^\d{4}-\d{2}-\d{2}\$/.test(trimmed)) {
+      const [year, month, day] = trimmed.split("-").map(Number);
+      return new Date(year, month - 1, day);
+    }
+
+    const d = new Date(trimmed);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  return null;
 };
 
 // Helper function to format date including accurate local time
 const formatDateTime = (value: unknown): string => {
-  const dateStr = getDateValue(value);
-  if (!dateStr) return "N/A";
-
-  const dateObj = new Date(dateStr);
-  if (isNaN(dateObj.getTime())) return String(value);
+  const dateObj = getDateValue(value);
+  if (!dateObj) return String(value || "N/A");
 
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
