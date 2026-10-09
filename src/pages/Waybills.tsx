@@ -56,10 +56,13 @@ export default function Waybills() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
 
-  // Filter sales: ensure waybill number exists or fallback to generated WB- format so records always appear
+  // Filter sales: Show ONLY waybills generated from the Waybill page (isCustomWaybill === true)
   const waybillsList = useMemo(() => {
     const filtered = (sales as Sale[]).filter((sale) => {
-      const waybillNum = sale.waybillNumber || `WB-${(sale.invoiceNumber || "").replace("INV-", "")}`;
+      // Strict rule: Allow only waybills created from the Waybill page
+      if (!sale.isCustomWaybill) return false;
+
+      const waybillNum = sale.waybillNumber || "";
       const search = searchTerm.toLowerCase();
 
       const matchesItems = sale.items?.some(item => 
@@ -176,6 +179,33 @@ export default function Waybills() {
     return waybillItems.reduce((sum, item) => sum + item.total, 0);
   }, [waybillItems]);
 
+  const buildWaybillPayload = () => {
+    const invoiceNumber = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
+    const waybillNumber = `WB-${Math.floor(100000 + Math.random() * 900000)}`;
+    const customerName = selectedCustomer?.fullName || selectedCustomer?.name || "Customer";
+
+    return {
+      invoiceNumber,
+      waybillNumber,
+      isCustomWaybill: true, // Flag to isolate waybills generated from this page
+      customerId: selectedCustomer?.id || "cust_walkin",
+      customerName,
+      customerPhone: selectedCustomer?.phone || "",
+      deliveryAddress: deliveryAddress || selectedCustomer?.address || "Customer Location",
+      vehicleNumber: vehicleNumber || "PENDING VEHICLE",
+      driverName: driverName || "PENDING DRIVER",
+      driverPhone: driverPhone || "",
+      items: waybillItems,
+      subtotal: calculatedSubtotal,
+      discount: 0,
+      totalAmount: calculatedSubtotal,
+      paymentMethod,
+      paymentStatus: "Completed",
+      deliveryNotes: "Goods Received in Good Condition & Proper Order. Inspect all seals upon delivery.",
+      date: new Date().toISOString()
+    };
+  };
+
   const handleSaveCustomWaybill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomer) {
@@ -191,29 +221,7 @@ export default function Waybills() {
     setFormError("");
 
     try {
-      const invoiceNumber = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
-      const waybillNumber = `WB-${Math.floor(100000 + Math.random() * 900000)}`;
-      const customerName = selectedCustomer.fullName || selectedCustomer.name || "Customer";
-
-      const newSalePayload = {
-        invoiceNumber,
-        waybillNumber,
-        customerId: selectedCustomer.id,
-        customerName,
-        customerPhone: selectedCustomer.phone || "",
-        deliveryAddress: deliveryAddress || selectedCustomer.address || "Customer Location",
-        vehicleNumber: vehicleNumber || "PENDING VEHICLE",
-        driverName: driverName || "PENDING DRIVER",
-        driverPhone: driverPhone || "",
-        items: waybillItems,
-        subtotal: calculatedSubtotal,
-        discount: 0,
-        totalAmount: calculatedSubtotal,
-        paymentMethod,
-        paymentStatus: "Completed",
-        deliveryNotes: "Goods Received in Good Condition & Proper Order. Inspect all seals upon delivery.",
-        date: new Date().toISOString()
-      };
+      const newSalePayload = buildWaybillPayload();
 
       if (apiCall) {
         await apiCall("addSale", newSalePayload);
@@ -231,6 +239,44 @@ export default function Waybills() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Allows downloading the PDF directly from the creation modal before or during saving
+  const handleDownloadFromModal = () => {
+    if (!selectedCustomer) {
+      setFormError("Please select a customer before downloading.");
+      return;
+    }
+    if (waybillItems.length === 0) {
+      setFormError("Please add at least one product item before downloading.");
+      return;
+    }
+
+    const previewPayload = buildWaybillPayload();
+    const waybillData: WaybillData = {
+      waybillNumber: previewPayload.waybillNumber,
+      invoiceNumber: previewPayload.invoiceNumber,
+      date: previewPayload.date,
+      deliveryDate: new Date().toISOString(),
+      customerId: previewPayload.customerId,
+      customerName: previewPayload.customerName,
+      customerPhone: previewPayload.customerPhone,
+      deliveryAddress: previewPayload.deliveryAddress,
+      dispatchStation: settings.stationAddress || settings.businessName,
+      staffName: "Station Attendant",
+      vehicleNumber: previewPayload.vehicleNumber,
+      driverName: previewPayload.driverName,
+      driverPhone: previewPayload.driverPhone,
+      items: previewPayload.items.map(item => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        unit: item.unit || "Unit",
+        remarks: "Goods Received in Good Condition"
+      })),
+      deliveryNotes: previewPayload.deliveryNotes
+    };
+
+    downloadWaybillPdf(waybillData, settings);
   };
 
   const handleQuickDownload = (sale: Sale, e: React.MouseEvent) => {
@@ -631,7 +677,8 @@ export default function Waybills() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-gray-200 flex justify-end gap-3">
+              {/* Action Buttons: Save & Generate AND Download PDF */}
+              <div className="pt-4 border-t border-gray-200 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => setIsCreatingWaybill(false)}
@@ -639,13 +686,25 @@ export default function Waybills() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmitting ? "Generating..." : "Save & Generate Waybill"}
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadFromModal}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Generating..." : "Save & Generate Waybill"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -765,7 +824,7 @@ export default function Waybills() {
               {waybillsList.length === 0 && (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-gray-400 text-sm italic">
-                    No generated waybill records found matching your filters.
+                    No custom waybill records found. Generate a waybill using the "Create Custom Waybill" button above.
                   </td>
                 </tr>
               )}
