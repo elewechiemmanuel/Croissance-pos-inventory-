@@ -40,7 +40,7 @@ export function formatDate(timestamp: any): string {
 
   if (isNaN(date.getTime())) return "N/A";
 
-  // Force it to use your local time zone cleanly
+  // Enforce West Africa Time (Africa/Lagos, UTC+1) to guarantee correct local time printing
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
@@ -48,5 +48,6 @@ export function formatDate(timestamp: any): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: "Africa/Lagos",
   }).format(date);
 }
