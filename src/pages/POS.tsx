@@ -18,7 +18,8 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  FileText
+  FileText,
+  RotateCcw
 } from "lucide-react";
 
 export default function POS() {
@@ -277,7 +278,7 @@ export default function POS() {
         discount,
         totalAmount: total,
         paymentMethod,
-        paymentStatus: "Pending"
+        paymentStatus: "Pending" // Starts as Pending until successfully printed
       };
 
       const savedSale = await apiCall("addSale", initialSalePayload);
@@ -307,8 +308,12 @@ export default function POS() {
         setCompletedSale(updatedSale);
       } catch (printErr) {
         console.warn("Printer failed:", printErr);
-        setError("Receipt printer failed! Transaction saved as pending.");
-        setCompletedSale(savedSale);
+        // Leave paymentStatus as "Pending" or mark as "Unprinted" so it shows under pending/failed tab
+        const unprintedSale = { ...savedSale, paymentStatus: "Pending" };
+        await apiCall("updateSale", unprintedSale).catch(() => {});
+        await refreshData();
+        setError("Receipt printer failed! Transaction saved as pending/unprinted.");
+        setCompletedSale(unprintedSale);
       }
     } catch (err: any) {
       setError(err.message || "Failed to process sale.");
@@ -317,11 +322,57 @@ export default function POS() {
     }
   };
 
+  // Admin-only restore handler for failed/pending/unprinted transactions
+  const handleRestoreTransaction = async (tx: Sale) => {
+    if (user?.role !== "admin") {
+      alert("Unauthorized: Only administrators can restore transactions.");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to restore invoice ${tx.invoiceNumber}? This will return items back to stock and cancel the transaction.`)) {
+      return;
+    }
+
+    try {
+      // 1. Return items back to stock
+      if (tx.items && Array.isArray(tx.items)) {
+        for (const item of tx.items) {
+          const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
+          if (targetProduct && targetProduct.id !== "prod_ago_guaranteed_default") {
+            const isAgo = targetProduct.name?.toUpperCase().includes("AGO") || targetProduct.category?.toUpperCase().includes("AGO");
+            const currentStockVal = targetProduct.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
+            const restoredStock = currentStockVal + item.quantity;
+            await apiCall("updateProduct", {
+              id: targetProduct.id,
+              currentStock: restoredStock
+            });
+          }
+        }
+      }
+
+      // 2. Update transaction status to cancelled/restored
+      await apiCall("updateSale", {
+        ...tx,
+        paymentStatus: "Restored",
+        status: "Cancelled"
+      });
+
+      await refreshData();
+      alert("Transaction restored successfully and stock updated.");
+    } catch (err: any) {
+      alert(err.message || "Failed to restore transaction.");
+    }
+  };
+
   const filteredTransactions = useMemo(() => {
     return (sales as Sale[]).filter(s => {
-      if (transactionTabFilter === "completed") return s.paymentStatus === "Completed" || s.paymentStatus === "Success";
-      if (transactionTabFilter === "pending") return s.paymentStatus === "Pending" || !s.paymentStatus || s.paymentStatus === "Failed";
-      return true;
+      const status = s.paymentStatus || "";
+      const isCompleted = status === "Completed" || status === "Success";
+      const isPendingOrFailed = status === "Pending" || status === "Failed" || !status;
+
+      if (transactionTabFilter === "completed") return isCompleted;
+      if (transactionTabFilter === "pending") return isPendingOrFailed && status !== "Restored";
+      return status !== "Restored"; // hide fully restored if viewing all, or keep depending on preference
     }).sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
   }, [sales, transactionTabFilter]);
 
@@ -382,7 +433,7 @@ export default function POS() {
                 const displayType = c.type || c.pricingTier || "";
                 return (
                   <option key={c.id} value={c.id}>
-                    {displayName} {displayType === 'Wholesale' ? `(Wholesale${c.businessName ? ` - \${c.businessName}` : ''})` : displayType ? `(${displayType})` : ''}
+                    {displayName} {displayType === 'Wholesale' ? `(Wholesale)` : displayType ? `(${displayType})` : ''}
                   </option>
                 );
               })}
@@ -679,7 +730,7 @@ export default function POS() {
                 onClick={() => setTransactionTabFilter("pending")}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "pending" ? "bg-amber-600 text-white" : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}
               >
-                Pending
+                Pending / Unprinted
               </button>
             </div>
             <span className="text-xs text-gray-500 font-semibold">{filteredTransactions.length} records found</span>
@@ -694,38 +745,48 @@ export default function POS() {
                   <th className="px-3 py-2.5">Customer</th>
                   <th className="px-3 py-2.5">Amount</th>
                   <th className="px-3 py-2.5">Status</th>
-                  <th className="px-3 py-2.5 text-center">Receipt</th>
+                  <th className="px-3 py-2.5 text-center">Actions / Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredTransactions.map((tx: Sale) => (
-                  <tr key={tx.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
-                    <td className="px-3 py-3 text-gray-500">{formatDate(tx.date)}</td>
-                    <td className="px-3 py-3 font-semibold text-gray-800">{tx.customerName || "Walk-in Customer"}</td>
-                    <td className="px-3 py-3 font-bold text-gray-900">{formatCurrency(tx.totalAmount)}</td>
-                    <td className="px-3 py-3">
-                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${tx.paymentStatus === "Completed" || tx.paymentStatus === "Success" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                        {tx.paymentStatus || "Completed"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => { setShowTransactionsModal(false); setCompletedSale(tx); }}
-                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <FileText className="w-3 h-3 text-blue-600" />
-                        <span>View Receipt</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredTransactions.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-gray-400">No transactions found.</td>
-                  </tr>
-                )}
+                {filteredTransactions.map((tx: Sale) => {
+                  const isCompleted = tx.paymentStatus === "Completed" || tx.paymentStatus === "Success";
+                  return (
+                    <tr key={tx.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
+                      <td className="px-3 py-3 text-gray-500">{formatDate(tx.date)}</td>
+                      <td className="px-3 py-3 font-semibold text-gray-800">{tx.customerName || "Walk-in Customer"}</td>
+                      <td className="px-3 py-3 font-bold text-gray-900">{formatCurrency(tx.totalAmount)}</td>
+                      <td className="px-3 py-3">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${isCompleted ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                          {tx.paymentStatus || "Pending"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-center flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCompletedSale(tx)}
+                          className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                        >
+                          <Printer className="w-3 h-3" />
+                          <span>View/Print</span>
+                        </button>
+
+                        {!isCompleted && user?.role === "admin" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreTransaction(tx)}
+                            className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
+                            title="Restore stock and cancel transaction"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            <span>Restore</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -733,7 +794,7 @@ export default function POS() {
       </div>
     )}
 
-    {/* Receipt Modal (Shows clean Receipt view only) */}
+    {/* Receipt Modal Preview */}
     {completedSale && (
       <Receipt 
         sale={completedSale} 
