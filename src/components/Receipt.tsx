@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { Product } from "../types";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency, formatDate } from "../lib/utils";
 import { Printer, Download, X, CheckCircle, Store, Phone, MapPin, Mail, Calendar, User, FileText } from "lucide-react";
 
 export interface ReceiptItem {
@@ -66,7 +66,6 @@ export default function Receipt({
   };
 
   const handleDownloadPdf = () => {
-    // Fallback or trigger print dialog configured for save-to-pdf
     window.print();
   };
 
@@ -157,7 +156,11 @@ export default function Receipt({
               </div>
               <div className="text-right">
                 <span className="text-gray-400 block text-[10px] uppercase font-semibold">Date & Time</span>
-                <span className="font-medium text-gray-800">{receipt.date}</span>
+                <span className="font-medium text-gray-800">
+                  {typeof receipt.date === 'string' && receipt.date.includes(',') 
+                    ? receipt.date 
+                    : formatDate(receipt.date)}
+                </span>
               </div>
               <div>
                 <span className="text-gray-400 block text-[10px] uppercase font-semibold">Cashier</span>
