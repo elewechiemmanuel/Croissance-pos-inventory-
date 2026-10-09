@@ -119,8 +119,7 @@ const getDateValue = (value: unknown): Date | null => {
 
   if (typeof value === "string") {
     const trimmed = value.trim();
-    // If it's a date-only string like "YYYY-MM-DD", combine with current local time or default to now
-    if (/^\d{4}-\d{2}-\d{2}\$/.test(trimmed)) {
+    // Fixed regex: Removed invalid backslash before $if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
       const [year, month, day] = trimmed.split("-").map(Number);
       const now = new Date();
       return new Date(
