@@ -19,7 +19,8 @@ import {
   Clock,
   XCircle,
   FileText,
-  RotateCcw
+  RotateCcw,
+  AlertTriangle
 } from "lucide-react";
 
 export default function POS() {
@@ -40,6 +41,9 @@ export default function POS() {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [cardQuantities, setCardQuantities] = useState<Record<string, string>>({});
   
+  // Confirmation Modal State for Printing/Checkout
+  const [showPrintConfirmModal, setShowPrintConfirmModal] = useState(false);
+
   // Modal / Drawer state for viewing transactions tabs
   const [showTransactionsModal, setShowTransactionsModal] = useState(false);
   const [transactionTabFilter, setTransactionTabFilter] = useState<"all" | "completed" | "pending">("all");
@@ -256,7 +260,7 @@ export default function POS() {
     return completedList.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())[0];
   }, [sales]);
 
-  const handleCheckout = async () => {
+  const handlePreCheckoutCheck = () => {
     if (cart.length === 0) return;
 
     const hasZeroQty = cart.some(item => !item.quantity || item.quantity <= 0);
@@ -265,12 +269,19 @@ export default function POS() {
       return;
     }
 
+    setError("");
+    setShowPrintConfirmModal(true); // Open the Yes/No confirmation prompt before printing
+  };
+
+  const handleExecuteCheckout = async () => {
+    setShowPrintConfirmModal(false);
     setIsProcessing(true);
     setError("");
 
     try {
       const customerName = selectedCustomer.fullName || selectedCustomer.name || "Walk-in Customer";
       
+      // Save directly with "Completed" status upon confirmed print execution
       const initialSalePayload = {
         customerId: selectedCustomer.id || "cust_walkin",
         customerName,
@@ -281,7 +292,7 @@ export default function POS() {
         discount,
         totalAmount: total,
         paymentMethod,
-        paymentStatus: "Pending"
+        paymentStatus: "Completed" 
       };
 
       const savedSale = await apiCall("addSale", initialSalePayload);
@@ -311,6 +322,7 @@ export default function POS() {
         setCompletedSale(updatedSale);
       } catch (printErr) {
         console.warn("Printer failed:", printErr);
+        // Fallback flag only if physical printer hardware explicitly throws an exception
         const unprintedSale = { ...savedSale, paymentStatus: "Pending" };
         await apiCall("updateSale", unprintedSale).catch(() => {});
         await refreshData();
@@ -451,6 +463,7 @@ export default function POS() {
           </div>
         </div>
       </div>
+      </div>
 
       {categories.length > 2 && (
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
@@ -522,7 +535,7 @@ export default function POS() {
                   <span className="text-gray-400 text-[11px] font-medium">{product.unit || 'L'}</span>
                 </div>
               </div>
-               
+                
               <div className="mt-3 pt-2 grid grid-cols-2 gap-2">
                 <button 
                   type="button"
@@ -680,7 +693,7 @@ export default function POS() {
         <div className="pt-1 grid grid-cols-1 gap-2">
           <button 
             type="button"
-            onClick={handleCheckout}
+            onClick={handlePreCheckoutCheck}
             disabled={cart.length === 0 || isProcessing}
             className="w-full bg-blue-900 hover:bg-blue-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-sm flex justify-center items-center gap-2 text-sm cursor-pointer"
           >
@@ -690,6 +703,38 @@ export default function POS() {
         </div>
       </div>
       </div>
+
+      {/* PRINT CONFIRMATION MODAL PROMPT (Are you sure you want to print this receipt?) */}
+      {showPrintConfirmModal && (
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 text-center space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Are you sure you want to print this receipt?</h3>
+              <p className="text-xs text-gray-500 mt-1">This will finalize the order, deduct inventory, and execute printing immediately.</p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPrintConfirmModal(false)}
+                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors cursor-pointer"
+              >
+                No (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteCheckout}
+                disabled={isProcessing}
+                className="flex-1 px-4 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-bold text-sm transition-colors cursor-pointer shadow-md disabled:opacity-50"
+              >
+                Yes, Print & Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Transactions Modal */}
       {showTransactionsModal && (
@@ -736,76 +781,75 @@ export default function POS() {
           </div>
 
           <div className="p-4 overflow-y-auto flex-1">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-gray-100 text-gray-600 uppercase font-semibold">
-                <tr>
-                  <th className="px-3 py-2.5">Invoice #</th>
-                  <th className="px-3 py-2.5">Date &amp; Time</th>
-                  <th className="px-3 py-2.5">Customer</th>
-                  <th className="px-3 py-2.5">Amount</th>
-                  <th className="px-3 py-2.5">Status</th>
-                  <th className="px-3 py-2.5 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredTransactions.map((tx: Sale) => {
-                  const statusTrimmed = (tx.paymentStatus || "").trim().toLowerCase();
-                  const isCompleted = statusTrimmed === "completed" || statusTrimmed === "success";
-
-                  return (
-                    <tr key={tx.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
-                      <td className="px-3 py-3 text-gray-500">{formatDate(tx.date)}</td>
-                      <td className="px-3 py-3 font-semibold text-gray-800">{tx.customerName || "Walk-in Customer"}</td>
-                      <td className="px-3 py-3 font-bold text-gray-900">{formatCurrency(tx.totalAmount)}</td>
-                      <td className="px-3 py-3">
-                        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${isCompleted ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                          {tx.paymentStatus || "Pending"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowTransactionsModal(false);
-                              setCompletedSale(tx);
-                            }}
-                            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
-                          >
-                            <Printer className="w-3 h-3" />
-                            <span>Receipt</span>
-                          </button>
-
-                          {!isCompleted && user?.role === "admin" && (
+            {filteredTransactions.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p className="text-sm font-medium">No transaction history matching the filter.</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-100 text-gray-600 uppercase font-semibold border-b border-gray-200">
+                    <th className="py-2.5 px-3">Invoice #</th>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Customer</th>
+                    <th className="py-2.5 px-3">Amount</th>
+                    <th className="py-2.5 px-3">Payment</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredTransactions.map((tx: Sale) => {
+                    const isSuccess = (tx.paymentStatus || "").trim().toLowerCase() === "completed" || (tx.paymentStatus || "").trim().toLowerCase() === "success";
+                    return (
+                      <tr key={tx.id || tx.invoiceNumber} className="hover:bg-gray-50">
+                        <td className="py-3 px-3 font-bold text-blue-900">{tx.invoiceNumber}</td>
+                        <td className="py-3 px-3 text-gray-600">{formatDate(tx.date)}</td>
+                        <td className="py-3 px-3 font-medium text-gray-900">{tx.customerName || "Walk-in Customer"}</td>
+                        <td className="py-3 px-3 font-bold text-gray-900">{formatCurrency(tx.totalAmount)}</td>
+                        <td className="py-3 px-3 text-gray-600">{tx.paymentMethod || "Cash"}</td>
+                        <td className="py-3 px-3">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full font-bold text-[10px] ${isSuccess ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                            {tx.paymentStatus || "Pending"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
-                              onClick={() => handleRestoreTransaction(tx)}
-                              className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-900 font-bold rounded text-[11px] flex items-center gap-1 cursor-pointer"
-                              title="Restore stock and cancel transaction"
+                              onClick={() => setCompletedSale(tx)}
+                              className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-semibold flex items-center gap-1 cursor-pointer"
                             >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Restore</span>
+                              <Printer className="w-3 h-3" /> Reprint
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {user?.role === "admin" && isSuccess && (
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreTransaction(tx)}
+                                className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded font-semibold flex items-center gap-1 cursor-pointer"
+                              >
+                                <RotateCcw className="w-3 h-3" /> Restore
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
       )}
 
-      {/* Receipt Modal Preview */}
+      {/* Receipt Modal Trigger */}
       {completedSale && (
-        <Receipt 
-          sale={completedSale} 
-          settings={settings} 
-          onClose={() => setCompletedSale(null)} 
+        <Receipt
+          sale={completedSale}
+          settings={settings}
+          onClose={() => setCompletedSale(null)}
         />
       )}
     </div>
