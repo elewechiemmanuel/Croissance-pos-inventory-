@@ -204,7 +204,6 @@ const Customers: React.FC = () => {
         setCustomers(customerData);
         setLoading(false);
 
-        // Sync to localStorage so POS / Invoicing pages can easily select customers
         try {
           localStorage.setItem('pos_customers', JSON.stringify(customerData));
         } catch (err) {
@@ -212,16 +211,9 @@ const Customers: React.FC = () => {
         }
       },
       (error) => {
-        console.error(
-          'Error fetching customers:',
-          error
-        );
-
+        console.error('Error fetching customers:', error);
         setLoading(false);
-
-        showError(
-          'Unable to load customers. Please check your Firebase connection and permissions.'
-        );
+        showError('Unable to load customers. Please check your Firebase connection and permissions.');
       }
     );
 
@@ -269,7 +261,7 @@ const Customers: React.FC = () => {
     try {
       await addDoc(collection(db, 'customers'), {
         name,
-        fullName: name, // Saved to satisfy components expecting fullName
+        fullName: name,
         email,
         phone,
         address,
@@ -334,7 +326,7 @@ const Customers: React.FC = () => {
 
       await updateDoc(customerRef, {
         name,
-        fullName: name, // Keep both updated
+        fullName: name,
         email,
         phone,
         address,
@@ -517,7 +509,6 @@ const Customers: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Notifications */}
       {errorMessage && (
         <div className="fixed top-5 right-5 z-[100] max-w-md bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg shadow-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -525,7 +516,7 @@ const Customers: React.FC = () => {
           <button
             type="button"
             onClick={() => setErrorMessage('')}
-            className="ml-auto text-red-500 hover:text-red-700"
+            className="ml-auto text-red-500 hover:text-red-700 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -539,14 +530,13 @@ const Customers: React.FC = () => {
           <button
             type="button"
             onClick={() => setSuccessMessage('')}
-            className="ml-auto text-green-500 hover:text-green-700"
+            className="ml-auto text-green-500 hover:text-green-700 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -560,14 +550,13 @@ const Customers: React.FC = () => {
         <button
           type="button"
           onClick={openAddModal}
-          className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition-colors"
+          className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium shadow transition-colors cursor-pointer"
         >
           <UserPlus className="w-5 h-5" />
           Add Customer
         </button>
       </div>
 
-      {/* Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
@@ -610,7 +599,6 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -619,7 +607,7 @@ const Customers: React.FC = () => {
             placeholder="Search name, email, phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
           />
         </div>
 
@@ -629,7 +617,7 @@ const Customers: React.FC = () => {
             <select
               value={tierFilter}
               onChange={(e) => setTierFilter(e.target.value as 'All' | PricingTier)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
             >
               <option value="All">All Tiers</option>
               <option value="Retail">Retail</option>
@@ -642,7 +630,7 @@ const Customers: React.FC = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'All' | CustomerStatus)}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
             >
               <option value="All">All Status</option>
               <option value="Active">Active</option>
@@ -653,7 +641,6 @@ const Customers: React.FC = () => {
         </div>
       </div>
 
-      {/* Customers Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-gray-500">Loading customers...</div>
@@ -669,7 +656,7 @@ const Customers: React.FC = () => {
               <button
                 type="button"
                 onClick={openAddModal}
-                className="mt-4 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                className="mt-4 inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
               >
                 <PlusCircle className="w-4 h-4" />
                 Add your first customer
@@ -746,20 +733,14 @@ const Customers: React.FC = () => {
                           type="button"
                           onClick={() => openPaymentModal(customer)}
                           disabled={customer.balanceDue <= 0}
-                          className="text-emerald-600 hover:text-emerald-800 disabled:text-gray-300 disabled:cursor-not-allowed text-xs font-medium bg-emerald-50 disabled:bg-gray-50 px-2.5 py-1.5 rounded-md"
-                          title={
-                            customer.balanceDue > 0
-                              ? 'Record Payment'
-                              : 'No outstanding balance'
-                          }
+                          className="text-emerald-600 hover:text-emerald-800 disabled:text-gray-300 disabled:cursor-not-allowed text-xs font-medium bg-emerald-50 disabled:bg-gray-50 px-2.5 py-1.5 rounded-md cursor-pointer"
                         >
                           Pay
                         </button>
                         <button
                           type="button"
                           onClick={() => openEditModal(customer)}
-                          className="text-blue-600 hover:text-blue-800 p-1.5 rounded-md hover:bg-blue-50"
-                          title="Edit customer"
+                          className="text-blue-600 hover:text-blue-800 p-1.5 rounded-md hover:bg-blue-50 cursor-pointer"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -767,8 +748,7 @@ const Customers: React.FC = () => {
                           type="button"
                           onClick={() => handleDeleteCustomer(customer.id)}
                           disabled={deletingId === customer.id}
-                          className="text-red-600 hover:text-red-800 disabled:text-gray-300 p-1.5 rounded-md hover:bg-red-50"
-                          title="Delete customer"
+                          className="text-red-600 hover:text-red-800 disabled:text-gray-300 p-1.5 rounded-md hover:bg-red-50 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -788,7 +768,7 @@ const Customers: React.FC = () => {
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <h3 className="text-lg font-bold text-gray-900">Add New Customer</h3>
-              <button type="button" onClick={closeAllModals} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={closeAllModals} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -801,7 +781,7 @@ const Customers: React.FC = () => {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   placeholder="Enter customer name"
                 />
               </div>
@@ -809,10 +789,10 @@ const Customers: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                 <input
-                  type="email"
+                  type="text"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   placeholder="customer@example.com"
                 />
               </div>
@@ -824,7 +804,7 @@ const Customers: React.FC = () => {
                   required
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   placeholder="08012345678"
                 />
               </div>
@@ -834,7 +814,7 @@ const Customers: React.FC = () => {
                 <select
                   value={formData.pricingTier}
                   onChange={(e) => setFormData({ ...formData, pricingTier: e.target.value as PricingTier })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
                 >
                   <option value="Retail">Retail</option>
                   <option value="Wholesale">Wholesale</option>
@@ -847,7 +827,7 @@ const Customers: React.FC = () => {
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                   placeholder="Customer address"
                 />
               </div>
@@ -857,7 +837,7 @@ const Customers: React.FC = () => {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as CustomerStatus })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -878,7 +858,7 @@ const Customers: React.FC = () => {
                       balanceDue: Math.max(0, Number(e.target.value) || 0),
                     })
                   }
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -887,14 +867,14 @@ const Customers: React.FC = () => {
                   type="button"
                   onClick={closeAllModals}
                   disabled={saving}
-                  className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium disabled:opacity-50"
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium disabled:opacity-50 text-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow disabled:opacity-50 text-sm cursor-pointer"
                 >
                   {saving ? 'Saving...' : 'Save Customer'}
                 </button>
@@ -910,7 +890,7 @@ const Customers: React.FC = () => {
           <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <h3 className="text-lg font-bold text-gray-900">Edit Customer</h3>
-              <button type="button" onClick={closeAllModals} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={closeAllModals} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -923,17 +903,17 @@ const Customers: React.FC = () => {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                 <input
-                  type="email"
+                  type="text"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -944,7 +924,7 @@ const Customers: React.FC = () => {
                   required
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -953,7 +933,7 @@ const Customers: React.FC = () => {
                 <select
                   value={formData.pricingTier}
                   onChange={(e) => setFormData({ ...formData, pricingTier: e.target.value as PricingTier })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
                 >
                   <option value="Retail">Retail</option>
                   <option value="Wholesale">Wholesale</option>
@@ -966,7 +946,7 @@ const Customers: React.FC = () => {
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                 />
               </div>
 
@@ -975,7 +955,7 @@ const Customers: React.FC = () => {
                 <select
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as CustomerStatus })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -988,14 +968,14 @@ const Customers: React.FC = () => {
                   type="button"
                   onClick={closeAllModals}
                   disabled={saving}
-                  className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium disabled:opacity-50"
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium disabled:opacity-50 text-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow disabled:opacity-50 text-sm cursor-pointer"
                 >
                   {saving ? 'Updating...' : 'Update Customer'}
                 </button>
@@ -1008,22 +988,22 @@ const Customers: React.FC = () => {
       {/* RECORD PAYMENT MODAL */}
       {isPaymentModalOpen && selectedCustomer && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-sm w-full p-6 shadow-xl">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl">
             <div className="flex items-center justify-between border-b pb-3 mb-4">
               <h3 className="text-lg font-bold text-gray-900">Record Payment</h3>
-              <button type="button" onClick={closeAllModals} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={closeAllModals} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleRecordPayment} className="space-y-4">
               <div>
-                <p className="text-xs text-gray-500">Customer</p>
-                <p className="text-sm font-semibold text-gray-900">{selectedCustomer.name}</p>
+                <p className="text-xs text-gray-500 mb-1">Customer</p>
+                <p className="text-sm font-bold text-gray-900">{selectedCustomer.name}</p>
               </div>
 
               <div>
-                <p className="text-xs text-gray-500">Current Balance Due</p>
+                <p className="text-xs text-gray-500 mb-1">Outstanding Balance Due</p>
                 <p className="text-base font-bold text-orange-600">{formatNaira(selectedCustomer.balanceDue)}</p>
               </div>
 
@@ -1035,9 +1015,9 @@ const Customers: React.FC = () => {
                   step="0.01"
                   max={selectedCustomer.balanceDue}
                   required
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(Number(e.target.value) || 0)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  value={paymentAmount || ''}
+                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
 
@@ -1046,14 +1026,14 @@ const Customers: React.FC = () => {
                   type="button"
                   onClick={closeAllModals}
                   disabled={saving}
-                  className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium disabled:opacity-50"
+                  className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 font-medium disabled:opacity-50 text-sm cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium shadow disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium shadow disabled:opacity-50 text-sm cursor-pointer"
                 >
                   {saving ? 'Processing...' : 'Confirm Payment'}
                 </button>
