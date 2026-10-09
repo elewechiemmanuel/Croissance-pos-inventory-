@@ -119,13 +119,17 @@ const getDateValue = (value: unknown): Date | null => {
   if (typeof value === "string") {
     const trimmed = value.trim();
     
-    // If it's a date-only string or contains midnight/1:00 AM UTC (e.g. ending in T00:00:00)
-    if (/^\d{4}-\d{2}-\d{2}\$/.test(trimmed) || trimmed.includes("T00:00:00")) {
-      const datePart = trimmed.split("T")[0];
-      const [year, month, day] = datePart.split("-").map(Number);
+    // Match any string that starts with YYYY-MM-DD
+    const dateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      const year = Number(dateMatch[1]);
+      const month = Number(dateMatch[2]);
+      const day = Number(dateMatch[3]);
       
-      // Fallback legacy records to a clean daytime hour (10:30:00 AM) instead of 1:00 AM
-      return new Date(year, month - 1, day, 10, 30, 0);
+      // If the string lacks a valid daytime time or defaults to midnight, assign clean daytime hours (10:30 AM)
+      if (!trimmed.includes("T") || trimmed.includes("T00:00:00")) {
+        return new Date(year, month - 1, day, 10, 30, 0);
+      }
     }
 
     const d = new Date(trimmed);
