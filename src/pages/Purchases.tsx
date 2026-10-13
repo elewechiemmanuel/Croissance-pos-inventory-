@@ -23,13 +23,15 @@ export default function Purchases() {
       const product = products.find((p: Product) => p.id === productId);
       const totalCost = Number(quantity) * Number(unitCost);
       
+      // Automatically captures and locks the exact timestamp of creation
       await apiCall("addPurchase", {
         productId,
         productName: product?.name || "",
         supplierName,
         quantity: Number(quantity),
         unitCost: Number(unitCost),
-        totalCost
+        totalCost,
+        date: new Date().toISOString() 
       });
       
       await refreshData();
