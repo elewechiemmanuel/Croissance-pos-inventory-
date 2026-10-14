@@ -10,11 +10,21 @@ export default function Purchases() {
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Helper to get today's date in YYYY-MM-DD format
+  const getTodayString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
   // Form state
   const [productId, setProductId] = useState(products[0]?.id || "");
   const [supplierName, setSupplierName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState(getTodayString());
 
   const handleAddPurchase = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +33,7 @@ export default function Purchases() {
       const product = products.find((p: Product) => p.id === productId);
       const totalCost = Number(quantity) * Number(unitCost);
       
-      // Automatically captures and locks the exact timestamp of creation
+      // Sends a fixed day-only date string to lock the inventory date permanently
       await apiCall("addPurchase", {
         productId,
         productName: product?.name || "",
@@ -31,12 +41,15 @@ export default function Purchases() {
         quantity: Number(quantity),
         unitCost: Number(unitCost),
         totalCost,
-        date: new Date().toISOString() 
+        date: purchaseDate 
       });
       
       await refreshData();
       setIsAdding(false);
-      setQuantity(""); setUnitCost(""); setSupplierName("");
+      setQuantity(""); 
+      setUnitCost(""); 
+      setSupplierName("");
+      setPurchaseDate(getTodayString());
     } catch (error) {
       alert("Failed to record purchase");
     } finally {
@@ -77,6 +90,16 @@ export default function Purchases() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Unit Cost (₦)</label>
               <input required type="number" min="0" step="0.01" value={unitCost} onChange={e => setUnitCost(e.target.value)} className="w-full p-2 border rounded" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label>
+              <input 
+                required 
+                type="date" 
+                value={purchaseDate} 
+                onChange={e => setPurchaseDate(e.target.value)} 
+                className="w-full p-2 border rounded" 
+              />
             </div>
             
             <div className="md:col-span-2 flex justify-between items-center mt-2 border-t pt-4">
