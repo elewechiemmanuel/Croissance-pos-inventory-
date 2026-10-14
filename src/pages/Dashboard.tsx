@@ -1,7 +1,7 @@
 import React, { useContext, useMemo } from "react";
 import { DataContext } from "../components/Layout";
 import { formatCurrency } from "../lib/utils";
-import { Package, Users, ShoppingCart, TrendingUp } from "lucide-react";
+import { Package, Users, ShoppingCart, TrendingUp, ShieldCheck, ShieldAlert } from "lucide-react";
 import { isToday, isThisMonth, subDays, format, isSameDay } from "date-fns";
 import { Product, Sale } from "../types";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -11,7 +11,21 @@ export default function Dashboard() {
   const data = useContext(DataContext);
   if (!data) return null;
 
-  const { products, customers, sales, refreshData } = data;
+  const { products, customers, sales, settings, refreshData } = data as any;
+
+  // License calculation
+  const expiryDateStr = settings?.licenseExpiryDate;
+  const expiryDate = expiryDateStr ? new Date(expiryDateStr) : null;
+  const todayDate = new Date();
+  
+  if (expiryDate) {
+    todayDate.setHours(0, 0, 0, 0);
+    expiryDate.setHours(0, 0, 0, 0);
+  }
+
+  const timeDiff = expiryDate ? expiryDate.getTime() - todayDate.getTime() : 0;
+  const daysLeft = Math.ceil(timeDiff / (1000 * 3600 * 24));
+  const isExpired = daysLeft <= 0;
 
   // Calculate metrics
   const todaySales = (sales || []).filter((s: Sale) => isToday(new Date(s.date)));
@@ -45,6 +59,32 @@ export default function Dashboard() {
           <p className="text-xs text-gray-500 mt-0.5">Real-time station operations, sales performance &amp; replenishment monitoring</p>
         </div>
       </div>
+
+      {/* License Status Banner */}
+      {expiryDateStr && (
+        <div className={`p-4 rounded-2xl border flex items-center justify-between shadow-2xs ${
+          isExpired ? "bg-red-50 border-red-200 text-red-900" : daysLeft <= 30 ? "bg-amber-50 border-amber-200 text-amber-900" : "bg-white border-gray-100 text-gray-800"
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+              isExpired ? "bg-red-100 text-red-600" : daysLeft <= 30 ? "bg-amber-100 text-amber-600" : "bg-blue-900 text-white"
+            }`}>
+              {isExpired ? <ShieldAlert className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
+            </div>
+            <div>
+              <h2 className="font-bold text-sm">
+                {isExpired ? "Software License Expired" : `License Active (${daysLeft} Days Remaining)`}
+              </h2>
+              <p className="text-xs opacity-80">
+                Expires on: <span className="font-semibold">{expiryDateStr}</span> • Powered by Emmytex Favourite Global Ventures
+              </p>
+            </div>
+          </div>
+          <div className="text-xs font-semibold px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-2xs">
+            {isExpired ? "Action Required" : "Licensed"}
+          </div>
+        </div>
+      )}
       
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -68,7 +108,7 @@ export default function Dashboard() {
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} />
-                  <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `₦${val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}`} tick={{ fontSize: 11, fill: '#6b7280' }} />
+                  <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `₦${val >= 1000 ? `\${(val/1000).toFixed(0)}k` : val}`} tick={{ fontSize: 11, fill: '#6b7280' }} />
                   <Tooltip 
                     cursor={{fill: '#f3f4f6'}} 
                     formatter={(value: number) => [formatCurrency(value), "Sales"]} 
