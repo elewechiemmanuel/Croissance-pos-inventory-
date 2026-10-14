@@ -1,7 +1,7 @@
 import React, { useContext, useState } from "react";
 import { DataContext } from "../components/Layout";
 import { Product, Purchase } from "../types";
-import { Plus } from "lucide-react";
+import { Plus, Edit2, Check, X } from "lucide-react";
 import { formatCurrency } from "../lib/utils";
 import { apiCall } from "../lib/api";
 
@@ -10,6 +10,11 @@ export default function Purchases() {
   const [isAdding, setIsAdding] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // State for inline editing purchase date
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null);
+  const [newDateValue, setNewDateValue] = useState("");
+  const [isUpdatingDate, setIsUpdatingDate] = useState(false);
+
   // Helper to get today's date in YYYY-MM-DD format
   const getTodayString = () => {
     const today = new Date();
@@ -33,7 +38,6 @@ export default function Purchases() {
       const product = products.find((p: Product) => p.id === productId);
       const totalCost = Number(quantity) * Number(unitCost);
       
-      // Sends the selected purchase date string permanently to the backend
       await apiCall("addPurchase", {
         productId,
         productName: product?.name || "",
@@ -54,6 +58,24 @@ export default function Purchases() {
       alert("Failed to record purchase");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Function to handle saving modified purchase date
+  const handleSaveDate = async (purchaseId: string) => {
+    if (!newDateValue) return;
+    setIsUpdatingDate(true);
+    try {
+      await apiCall("updatePurchaseDate", {
+        id: purchaseId,
+        date: newDateValue
+      });
+      await refreshData();
+      setEditingPurchaseId(null);
+    } catch (error) {
+      alert("Failed to update purchase date");
+    } finally {
+      setIsUpdatingDate(false);
     }
   };
 
@@ -128,11 +150,11 @@ export default function Purchases() {
                 <th className="px-6 py-3 text-right">Qty</th>
                 <th className="px-6 py-3 text-right">Unit Cost</th>
                 <th className="px-6 py-3 text-right">Total Cost</th>
+                <th className="px-6 py-3 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {[...purchases].reverse().map((p: Purchase) => {
-                // Safely format the saved date inline to avoid dynamic time overrides
                 const purchaseDateObj = p.date ? new Date(p.date) : new Date();
                 const formattedDateString = isNaN(purchaseDateObj.getTime()) 
                   ? p.date 
@@ -142,20 +164,64 @@ export default function Purchases() {
                       year: "numeric"
                     });
 
+                const isEditingThisRow = editingPurchaseId === p.id;
+
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-medium">{formattedDateString}</td>
+                    <td className="px-6 py-4 font-medium">
+                      {isEditingThisRow ? (
+                        <div className="flex items-center gap-1">
+                          <input 
+                            type="date" 
+                            value={newDateValue} 
+                            onChange={e => setNewDateValue(e.target.value)} 
+                            className="p-1 border rounded text-xs"
+                          />
+                          <button 
+                            onClick={() => handleSaveDate(p.id)} 
+                            disabled={isUpdatingDate}
+                            className="p-1 bg-green-600 text-white rounded hover:bg-green-700"
+                            title="Save Date"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => setEditingPurchaseId(null)} 
+                            className="p-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                            title="Cancel"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span>{formattedDateString}</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4">{p.supplierName}</td>
                     <td className="px-6 py-4 font-medium">{p.productName}</td>
                     <td className="px-6 py-4 text-right font-bold text-green-600">+{p.quantity}</td>
                     <td className="px-6 py-4 text-right">{formatCurrency(p.unitCost)}</td>
                     <td className="px-6 py-4 text-right font-bold">{formatCurrency(p.totalCost)}</td>
+                    <td className="px-6 py-4 text-center">
+                      {!isEditingThisRow && (
+                        <button 
+                          onClick={() => {
+                            setEditingPurchaseId(p.id);
+                            setNewDateValue(p.date || getTodayString());
+                          }} 
+                          className="text-gray-400 hover:text-blue-900 transition-colors p-1"
+                          title="Modify Date"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {purchases.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No purchases recorded yet.</td>
+                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">No purchases recorded yet.</td>
                 </tr>
               )}
             </tbody>
