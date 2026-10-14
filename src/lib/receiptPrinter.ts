@@ -89,9 +89,9 @@ export function generateReceiptHtml(sale: Sale, settings: Settings, paperSize: "
       <body>
         <div class="text-center">
           <div class="title">${settings.businessName || "CROISSANCE OIL & GAS LTD"}</div>
-          ${settings.rcNumber ? `<div>RC: ${settings.rcNumber}</div>` : ""}
-          ${settings.stationAddress ? `<div style="white-space: pre-line;">${settings.stationAddress}</div>` : ""}
-          ${settings.phoneNumbers ? `<div>Tel: ${settings.phoneNumbers}</div>` : ""}
+          ${settings.rcNumber ? `<div>RC: \${settings.rcNumber}</div>` : ""}
+          ${settings.stationAddress ? `<div style="white-space: pre-line;">\${settings.stationAddress}</div>` : ""}
+          ${settings.phoneNumbers ? `<div>Tel: \${settings.phoneNumbers}</div>` : ""}
         </div>
 
         <div class="divider"></div>
@@ -141,7 +141,7 @@ export function generateReceiptHtml(sale: Sale, settings: Settings, paperSize: "
           ${sale.discount > 0 ? `
           <tr>
             <td>Discount:</td>
-            <td class="text-right">-${formatCurrency(sale.discount)}</td>
+            <td class="text-right">-\${formatCurrency(sale.discount)}</td>
           </tr>
           ` : ""}
           <tr class="double-divider">
@@ -165,6 +165,7 @@ export function generateReceiptHtml(sale: Sale, settings: Settings, paperSize: "
           <p style="margin: 3px 0; color: #333;">Goods once sold are not returnable</p>
           <div class="barcode">* ${sale.invoiceNumber} *</div>
           <p style="margin-top: 5px; font-size: 0.8em; color: #666;">Generated via Croissance POS</p>
+          <p style="margin-top: 4px; font-size: 0.75em; font-weight: bold; color: #222;">Powered by Emmytex Favourite Global Ventures</p>
         </div>
       </body>
     </html>
@@ -205,7 +206,7 @@ export function generateRawEscPosReceipt(sale: Sale, settings: Settings): string
   out += `ATTENDANT: ${sale.staffName || "Staff"}\n`;
   out += `CUSTOMER: ${sale.customerName || "Walk-in"}\n`;
   out += line;
-  out += `ITEM             QTY   PRICE    TOTAL\n`;
+  out += `ITEM                 QTY     PRICE       TOTAL\n`;
   out += line;
   for (const item of sale.items) {
     const name = item.productName.slice(0, 14).padEnd(14);
@@ -214,9 +215,9 @@ export function generateRawEscPosReceipt(sale: Sale, settings: Settings): string
     out += `${name} ${qty} ${total}\n`;
   }
   out += line;
-  out += `SUBTOTAL:   ${formatCurrency(sale.subtotal || sale.totalAmount)}\n`;
+  out += `SUBTOTAL:    ${formatCurrency(sale.subtotal || sale.totalAmount)}\n`;
   if (sale.discount > 0) {
-    out += `DISCOUNT:  -${formatCurrency(sale.discount)}\n`;
+    out += `DISCOUNT:   -${formatCurrency(sale.discount)}\n`;
   }
   out += `TOTAL PAID: ${formatCurrency(sale.totalAmount)}\n`;
   out += `METHOD:     ${(sale.paymentMethod || "CASH").toUpperCase()}\n`;
@@ -224,7 +225,8 @@ export function generateRawEscPosReceipt(sale: Sale, settings: Settings): string
   out += doubleLine;
   out += `THANK YOU FOR YOUR PATRONAGE!\n`;
   out += `Goods sold are not returnable.\n`;
-  out += `* ${sale.invoiceNumber} *\n\n\n`;
+  out += `* ${sale.invoiceNumber} *\n\n`;
+  out += `Powered by Emmytex Favourite Global Ventures\n\n\n`;
   return out;
 }
 
@@ -235,7 +237,7 @@ export function downloadReceiptPdf(sale: Sale, settings: Settings) {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
-    format: [80, 180 + (sale.items.length * 8)] // Dynamic receipt height
+    format: [80, 190 + (sale.items.length * 8)] // Dynamic receipt height adjusted for branding
   });
 
   doc.setFont("courier", "bold");
@@ -340,8 +342,13 @@ export function downloadReceiptPdf(sale: Sale, settings: Settings) {
   doc.text("THANK YOU FOR YOUR PATRONAGE!", 40, y, { align: "center" });
   y += 3.5;
   doc.text("Goods once sold are not returnable.", 40, y, { align: "center" });
-  y += 4;
+  y += 3.5;
   doc.text(`* ${sale.invoiceNumber} *`, 40, y, { align: "center" });
+  y += 4;
+  
+  doc.setFont("courier", "bold");
+  doc.setFontSize(6.5);
+  doc.text("Powered by Emmytex Favourite Global Ventures", 40, y, { align: "center" });
 
   doc.save(`Receipt_${sale.invoiceNumber}.pdf`);
 }
