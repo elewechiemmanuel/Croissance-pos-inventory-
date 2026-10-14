@@ -3,10 +3,14 @@ import { DataContext } from "./Layout";
 import { ShieldAlert } from "lucide-react";
 
 export default function LicenseGuard({ children }: { children: React.ReactNode }) {
-  const { settings } = useContext(DataContext) as any;
+  const data = useContext(DataContext) as any;
 
-  // Read expiry date from settings (fallback to today if missing)
-  const expiryDateStr = settings?.licenseExpiryDate;
+  // If context is still loading or unavailable, don't block the app yet
+  if (!data || !data.settings) {
+    return <>{children}</>;
+  }
+
+  const expiryDateStr = data.settings?.licenseExpiryDate;
   
   if (!expiryDateStr) {
     return <>{children}</>;
@@ -15,7 +19,6 @@ export default function LicenseGuard({ children }: { children: React.ReactNode }
   const expiryDate = new Date(expiryDateStr);
   const today = new Date();
 
-  // Compare dates (ignoring time of day)
   today.setHours(0, 0, 0, 0);
   expiryDate.setHours(0, 0, 0, 0);
 
