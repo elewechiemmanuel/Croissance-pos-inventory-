@@ -2,7 +2,7 @@ import React, { useContext, useState } from "react";
 import { DataContext } from "../components/Layout";
 import { Product, Purchase } from "../types";
 import { Plus } from "lucide-react";
-import { formatCurrency, formatDate } from "../lib/utils";
+import { formatCurrency } from "../lib/utils";
 import { apiCall } from "../lib/api";
 
 export default function Purchases() {
@@ -33,7 +33,7 @@ export default function Purchases() {
       const product = products.find((p: Product) => p.id === productId);
       const totalCost = Number(quantity) * Number(unitCost);
       
-      // Sends a fixed day-only date string to lock the inventory date permanently
+      // Sends the selected purchase date string permanently to the backend
       await apiCall("addPurchase", {
         productId,
         productName: product?.name || "",
@@ -131,16 +131,28 @@ export default function Purchases() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {[...purchases].reverse().map((p: Purchase) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">{formatDate(p.date)}</td>
-                  <td className="px-6 py-4">{p.supplierName}</td>
-                  <td className="px-6 py-4 font-medium">{p.productName}</td>
-                  <td className="px-6 py-4 text-right font-bold text-green-600">+{p.quantity}</td>
-                  <td className="px-6 py-4 text-right">{formatCurrency(p.unitCost)}</td>
-                  <td className="px-6 py-4 text-right font-bold">{formatCurrency(p.totalCost)}</td>
-                </tr>
-              ))}
+              {[...purchases].reverse().map((p: Purchase) => {
+                // Safely format the saved date inline to avoid dynamic time overrides
+                const purchaseDateObj = p.date ? new Date(p.date) : new Date();
+                const formattedDateString = isNaN(purchaseDateObj.getTime()) 
+                  ? p.date 
+                  : purchaseDateObj.toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric"
+                    });
+
+                return (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 font-medium">{formattedDateString}</td>
+                    <td className="px-6 py-4">{p.supplierName}</td>
+                    <td className="px-6 py-4 font-medium">{p.productName}</td>
+                    <td className="px-6 py-4 text-right font-bold text-green-600">+{p.quantity}</td>
+                    <td className="px-6 py-4 text-right">{formatCurrency(p.unitCost)}</td>
+                    <td className="px-6 py-4 text-right font-bold">{formatCurrency(p.totalCost)}</td>
+                  </tr>
+                );
+              })}
               {purchases.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No purchases recorded yet.</td>
