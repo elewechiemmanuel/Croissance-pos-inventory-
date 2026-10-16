@@ -37,6 +37,7 @@ interface ReceiptProps {
   businessInfo?: {
     name: string;
     tagline?: string;
+    rcNumber?: string;
     address: string;
     phone: string;
     email: string;
@@ -51,8 +52,9 @@ export default function Receipt({
   businessInfo = {
     name: "CROISSANCE OIL & GAS LTD",
     tagline: "Premium Petroleum Products & Energy Solutions",
+    rcNumber: "1234567",
     address: "Plot 12, Energy City Expressway, Lagos, Nigeria",
-    phone: "+234 803 000 1122",
+    phone: "08164782722", // Updated phone number
     email: "sales@croissanceoil.com",
     taxId: "TIN-98765432-0001"
   }
@@ -123,6 +125,11 @@ export default function Receipt({
               <h1 className="text-base font-extrabold tracking-wide text-blue-950 uppercase">
                 {businessInfo.name}
               </h1>
+              {businessInfo.rcNumber && (
+                <p className="text-[11px] font-mono font-medium text-gray-600 mt-0.5">
+                  RC: {businessInfo.rcNumber}
+                </p>
+              )}
               {businessInfo.tagline && (
                 <p className="text-[11px] text-gray-500 mt-0.5">{businessInfo.tagline}</p>
               )}
@@ -131,12 +138,11 @@ export default function Receipt({
                   <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
                   <span>{businessInfo.address}</span>
                 </p>
+                <p className="flex items-center justify-center gap-1 mt-1">
+                  <Phone className="w-3 h-3 text-gray-400 shrink-0" />
+                  <span>{businessInfo.phone}</span>
+                </p>
                 <div className="flex items-center justify-center gap-3 mt-1">
-                  <span className="flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-gray-400 shrink-0" />
-                    <span>{businessInfo.phone}</span>
-                  </span>
-                  <span>•</span>
                   <span className="flex items-center gap-1">
                     <Mail className="w-3 h-3 text-gray-400 shrink-0" />
                     <span>{businessInfo.email}</span>
