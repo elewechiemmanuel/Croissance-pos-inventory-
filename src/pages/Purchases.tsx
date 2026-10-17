@@ -155,14 +155,24 @@ export default function Purchases() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {[...purchases].reverse().map((p: Purchase) => {
-                const purchaseDateObj = p.date ? new Date(p.date) : new Date();
-                const formattedDateString = isNaN(purchaseDateObj.getTime()) 
-                  ? p.date 
-                  : purchaseDateObj.toLocaleDateString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric"
-                    });
+                // FIXED: Removed `new Date()` fallback so old records stay static
+                const formattedDateString = (() => {
+                  if (!p.date) return "N/A";
+                  // Handle YYYY-MM-DD string format safely without timezone shifts
+                  const parts = p.date.split("T")[0].split("-");
+                  if (parts.length === 3) {
+                    const [year, month, day] = parts;
+                    const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+                    if (!isNaN(dateObj.getTime())) {
+                      return dateObj.toLocaleDateString("en-GB", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric"
+                      });
+                    }
+                  }
+                  return p.date;
+                })();
 
                 const isEditingThisRow = editingPurchaseId === p.id;
 
@@ -207,7 +217,7 @@ export default function Purchases() {
                         <button 
                           onClick={() => {
                             setEditingPurchaseId(p.id);
-                            setNewDateValue(p.date || getTodayString());
+                            setNewDateValue(p.date ? p.date.split("T")[0] : getTodayString());
                           }} 
                           className="text-gray-400 hover:text-blue-900 transition-colors p-1"
                           title="Modify Date"
