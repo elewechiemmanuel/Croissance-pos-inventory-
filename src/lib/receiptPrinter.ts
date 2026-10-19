@@ -91,7 +91,7 @@ export function generateReceiptHtml(sale: Sale, settings: Settings, paperSize: "
           <div class="title">${settings.businessName || "CROISSANCE OIL & GAS LTD"}</div>
           ${settings.rcNumber ? `<div>RC: \${settings.rcNumber}</div>` : ""}
           ${settings.stationAddress ? `<div style="white-space: pre-line;">\${settings.stationAddress}</div>` : ""}
-          ${settings.phoneNumbers ? `<div>Tel: \${settings.phoneNumbers}</div>` : ""}
+          <div>Tel: 0816 478 2722</div>
         </div>
 
         <div class="divider"></div>
@@ -199,7 +199,7 @@ export function generateRawEscPosReceipt(sale: Sale, settings: Settings): string
   out += `${(settings.businessName || "CROISSANCE OIL & GAS LTD").toUpperCase()}\n`;
   if (settings.rcNumber) out += `RC: ${settings.rcNumber}\n`;
   if (settings.stationAddress) out += `${settings.stationAddress}\n`;
-  if (settings.phoneNumbers) out += `TEL: ${settings.phoneNumbers}\n`;
+  out += `TEL: 0816 478 2722\n`;
   out += doubleLine;
   out += `RECEIPT #: ${sale.invoiceNumber}\n`;
   out += `DATE: ${formatDate(sale.date)}\n`;
@@ -237,7 +237,7 @@ export function downloadReceiptPdf(sale: Sale, settings: Settings) {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
-    format: [80, 190 + (sale.items.length * 8)] // Dynamic receipt height adjusted for branding
+    format: [80, 195 + (sale.items.length * 8)] // Dynamic receipt height adjusted for branding
   });
 
   doc.setFont("courier", "bold");
@@ -256,10 +256,8 @@ export function downloadReceiptPdf(sale: Sale, settings: Settings) {
     doc.text(addressLines, 40, y, { align: "center" });
     y += (addressLines.length * 3.5);
   }
-  if (settings.phoneNumbers) {
-    doc.text(`Tel: ${settings.phoneNumbers}`, 40, y, { align: "center" });
-    y += 4;
-  }
+  doc.text("Tel: 0816 478 2722", 40, y, { align: "center" });
+  y += 4;
 
   y += 2;
   doc.setLineDashPattern([1, 1], 0);
