@@ -292,21 +292,25 @@ export default function POS() {
         totalAmount: total,
         paymentMethod,
         paymentStatus: "Completed",
-        date: new Date().toISOString() // <-- Records precise local time
+        date: new Date().toISOString()
       };
 
       const savedSale = await apiCall("addSale", initialSalePayload);
 
       for (const item of cart) {
         const targetProduct = combinedProducts.find((p: Product) => p.id === item.productId);
-        if (targetProduct && targetProduct.id !== "prod_ago_guaranteed_default") {
+        if (targetProduct) {
           const isAgo = targetProduct.name?.toUpperCase().includes("AGO") || targetProduct.category?.toUpperCase().includes("AGO");
           const currentStockVal = targetProduct.currentStock ?? (isAgo ? AGO_DEFAULT_STOCK : DEFAULT_STOCK_BALANCE);
           const updatedStock = Math.max(0, currentStockVal - item.quantity);
-          await apiCall("updateProduct", {
-            id: targetProduct.id,
-            currentStock: updatedStock
-          }).catch(err => console.warn("Stock depletion sync error:", err));
+          
+          // If it's using the virtual fallback ID, we skip updating via API or handle it if real ID exists
+          if (targetProduct.id !== "prod_ago_guaranteed_default") {
+            await apiCall("updateProduct", {
+              id: targetProduct.id,
+              currentStock: updatedStock
+            }).catch(err => console.warn("Stock depletion sync error:", err));
+          }
         }
       }
 
@@ -322,7 +326,6 @@ export default function POS() {
         setCompletedSale(updatedSale);
       } catch (printErr) {
         console.warn("Printer failed:", printErr);
-        // Only mark as Pending if printer physically fails
         const unprintedSale = { ...savedSale, paymentStatus: "Pending" };
         await apiCall("updateSale", unprintedSale).catch(() => {});
         await refreshData();
@@ -720,128 +723,171 @@ export default function POS() {
                 onClick={() => setShowPrintConfirmModal(false)}
                 className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-sm transition-colors cursor-pointer"
               >
-                No (Cancel)
+                Cancel
               </button>
               <button
                 type="button"
                 onClick={handleExecuteCheckout}
                 className="flex-1 px-4 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-bold text-sm transition-colors shadow-sm cursor-pointer"
               >
-                Yes, Print & Save
+                Yes, Print & Checkout
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* RECEIPT PREVIEW / MODAL */}
+      {/* Completed Sale / Receipt Modal */}
       {completedSale && (
-        <Receipt
-          sale={completedSale}
-          settings={settings}
-          onClose={() => setCompletedSale(null)}
-        />
-      )}
-
-      {/* TRANSACTIONS HISTORY MODAL */}
-      {showTransactionsModal && (
-        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-blue-950 text-white">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-400" />
-                <h2 className="font-bold text-base">Transactions History</h2>
-              </div>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 bg-blue-950 text-white flex items-center justify-between">
+              <h3 className="font-bold text-sm flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-400" />
+                Transaction Complete
+              </h3>
+              <button 
+                onClick={() => setCompletedSale(null)}
+                className="p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1 bg-gray-50 flex justify-center">
+              <Receipt sale={completedSale} settings={settings} />
+            </div>
+            <div className="p-4 bg-white border-t border-gray-100 flex items-center justify-end gap-3">
               <button
                 type="button"
+                onClick={async () => {
+                  try {
+                    await printReceipt(completedSale, settings, "thermal80");
+                  } catch (e) {
+                    alert("Printing failed.");
+                  }
+                }}
+                className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Again</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCompletedSale(null)}
+                className="px-5 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Done / New Sale
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transactions History Modal */}
+      {showTransactionsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[80vh]">
+            <div className="p-4 bg-blue-950 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-amber-400" />
+                <h3 className="font-bold text-base">Transactions History</h3>
+              </div>
+              <button 
                 onClick={() => setShowTransactionsModal(false)}
                 className="p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
               >
-                <XCircle className="w-6 h-6" />
+                <XCircle className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
-              <div className="flex bg-gray-200/70 p-1 rounded-xl text-xs font-semibold gap-1">
-                <button
-                  type="button"
-                  onClick={() => setTransactionTabFilter("all")}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${transactionTabFilter === "all" ? "bg-white text-blue-950 shadow-2xs font-bold" : "text-gray-600 hover:text-gray-900"}`}
-                >
-                  All Transactions
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTransactionTabFilter("completed")}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${transactionTabFilter === "completed" ? "bg-white text-emerald-800 shadow-2xs font-bold" : "text-gray-600 hover:text-gray-900"}`}
-                >
-                  Completed / Paid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTransactionTabFilter("pending")}
-                  className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${transactionTabFilter === "pending" ? "bg-white text-amber-800 shadow-2xs font-bold" : "text-gray-600 hover:text-gray-900"}`}
-                >
-                  Pending / Unprinted
-                </button>
-              </div>
-              <span className="text-xs text-gray-500 font-medium">Showing {filteredTransactions.length} records</span>
+            <div className="p-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setTransactionTabFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "all" ? 'bg-blue-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+              >
+                All Sales
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransactionTabFilter("completed")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "completed" ? 'bg-blue-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+              >
+                Completed
+              </button>
+              <button
+                type="button"
+                onClick={() => setTransactionTabFilter("pending")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer ${transactionTabFilter === "pending" ? 'bg-blue-900 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'}`}
+              >
+                Pending / Unprinted
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
               {filteredTransactions.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 py-12">
-                  <FileText className="w-12 h-12 mb-2 opacity-20" />
-                  <p className="font-semibold text-gray-600">No transactions found</p>
+                  <FileText className="w-10 h-10 mb-2 opacity-20" />
+                  <p className="text-sm font-medium">No transactions found</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredTransactions.map((tx: Sale) => {
-                    const status = (tx.paymentStatus || "").trim();
-                    const isPaid = status.toLowerCase() === "completed" || status.toLowerCase() === "success" || status.toLowerCase() === "paid";
-                    
-                    return (
-                      <div key={tx.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs hover:border-blue-300 transition-colors">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-blue-950 text-sm">{tx.invoiceNumber || "INV-XXXX"}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                              {status || "Completed"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-600 font-medium">Customer: <span className="text-gray-900 font-bold">{tx.customerName || "Walk-in Customer"}</span></p>
-                          <p className="text-[11px] text-gray-400">{formatDate(tx.date)} • {tx.items?.length || 0} items • {tx.paymentMethod || "Cash"}</p>
+                  {filteredTransactions.map((tx: Sale) => (
+                    <div key={tx.id || tx.invoiceNumber} className="border border-gray-200 rounded-xl p-4 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shadow-2xs">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-gray-900">#{tx.invoiceNumber || tx.id}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                            (tx.paymentStatus || "").toLowerCase() === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                            (tx.paymentStatus || "").toLowerCase() === 'restored' ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {tx.paymentStatus || 'Pending'}
+                          </span>
                         </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Customer: <span className="font-medium text-gray-800">{tx.customerName || 'Walk-in Customer'}</span> • {formatDate(tx.date)}
+                        </p>
+                      </div>
 
-                        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-100">
-                          <span className="font-bold text-base text-blue-950">{formatCurrency(tx.totalAmount)}</span>
-                          <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                        <span className="font-bold text-sm text-blue-950">{formatCurrency(tx.totalAmount)}</span>
+                        
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setCompletedSale(tx)}
+                            className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                            title="View / Print Receipt"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+
+                          {user?.role === "admin" && (tx.paymentStatus || "").toLowerCase() !== "restored" && (
                             <button
                               type="button"
-                              onClick={() => setCompletedSale(tx)}
-                              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
+                              onClick={() => handleRestoreTransaction(tx)}
+                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                              title="Restore Stock & Cancel Transaction"
                             >
-                              <Printer className="w-3.5 h-3.5" />
-                              <span>Receipt</span>
+                              <RotateCcw className="w-3.5 h-3.5" />
                             </button>
-                            {user?.role === "admin" && status.toLowerCase() !== "restored" && (
-                              <button
-                                type="button"
-                                onClick={() => handleRestoreTransaction(tx)}
-                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1 cursor-pointer"
-                                title="Return items to stock and cancel transaction"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                <span>Restore</span>
-                              </button>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               )}
+            </div>
+            
+            <div className="p-3 bg-gray-50 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowTransactionsModal(false)}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

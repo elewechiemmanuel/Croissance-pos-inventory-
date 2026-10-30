@@ -117,7 +117,7 @@ export async function apiCall(action: string, payload: any = {}) {
         ...payloadWithActor,
         invoiceNumber,
         createdAt: serverTimestamp(),
-        timestamp: now.toISOString(), // FIX: Guaranteed client-side timestamp string for immediate UI rendering
+        timestamp: now.toISOString(), // Guaranteed client-side timestamp string for immediate UI rendering
         date: payload.date || now.toISOString().split("T")[0]
       });
 
@@ -148,6 +148,44 @@ export async function apiCall(action: string, payload: any = {}) {
                 quantity: newStock,
                 stock: newStock
               });
+            } else if (targetId === "prod_ago_guaranteed_default") {
+              // AUTO-PROVISION & DEDUCT: Handle virtual AGO fallback so stock depletes in database
+              const productsSnap = await getDocs(collection(db, "products"));
+              let foundAgoDocId: string | null = null;
+              let currentAgoStock = 2690;
+
+              for (const productDoc of productsSnap.docs) {
+                const pData = productDoc.data();
+                if (pData.name?.toUpperCase().includes("AGO") || pData.category?.toUpperCase().includes("AGO")) {
+                  foundAgoDocId = productDoc.id;
+                  currentAgoStock = Number(pData.currentStock ?? pData.stock ?? pData.quantity ?? 2690);
+                  break;
+                }
+              }
+
+              const newStock = Math.max(0, currentAgoStock - qtyToDeduct);
+
+              if (foundAgoDocId) {
+                await updateDoc(doc(db, "products", foundAgoDocId), {
+                  currentStock: newStock,
+                  quantity: newStock,
+                  stock: newStock
+                });
+              } else {
+                await addDoc(collection(db, "products"), {
+                  name: "AGO (Diesel)",
+                  category: "Fuel",
+                  currentStock: newStock,
+                  quantity: newStock,
+                  stock: newStock,
+                  sellingPrice: 2050,
+                  wholesalePrice: 2000,
+                  unit: "L",
+                  minStock: 500,
+                  status: "Active",
+                  createdAt: serverTimestamp()
+                });
+              }
             } else {
               const q = query(collection(db, "products"), where("id", "==", targetId));
               const querySnap = await getDocs(q);
